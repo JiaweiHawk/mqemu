@@ -5,3 +5,6 @@ compile_commands.json
 # 忽略rootfs产物
 rootfs_l1
 rootfs_l1.cpio
+
+# 忽略dhcp运行产物
+dnsmasq_l1.pid
