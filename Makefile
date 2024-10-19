@@ -1,9 +1,9 @@
 PWD						:= $(shell pwd)
 NPROC					:= $(shell nproc)
 
-.PHONY: env kernel submodules
+.PHONY: env kernel qemu submodules
 
-env: kernel
+env: kernel qemu
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
 
 kernel:
@@ -58,6 +58,27 @@ kernel:
 			-j ${NPROC}
 
 	@echo -e '\033[0;32m[*]\033[0mbuild the linux kernel'
+
+qemu:
+	sudo apt update && \
+	sudo apt install -y \
+		bear libfdt-dev libglib2.0-dev libpixman-1-dev ninja-build python3-pip zlib1g-dev
+
+	cd ${PWD}/qemu && \
+	./configure \
+		--target-list=x86_64-softmmu \
+		--enable-debug \
+		--enable-kvm \
+		--enable-virtfs
+
+	bear \
+		--append \
+		--output ${PWD}/compile_commands.json \
+		-- make \
+			-C ${PWD}/qemu \
+			-j ${NPROC}
+
+	@echo -e '\033[0;32m[*]\033[0mbuild the qemu'
 
 submodules:
 	git submodule
