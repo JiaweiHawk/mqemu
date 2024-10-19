@@ -1,9 +1,10 @@
 PWD						:= $(shell pwd)
 NPROC					:= $(shell nproc)
+ROOTFS_L1 				:= rootfs_l1
 
-.PHONY: env kernel qemu submodules
+.PHONY: env kernel qemu rootfs_l1 submodules
 
-env: kernel qemu
+env: kernel qemu rootfs_l1
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
 
 kernel:
@@ -79,6 +80,35 @@ qemu:
 			-j ${NPROC}
 
 	@echo -e '\033[0;32m[*]\033[0mbuild the qemu'
+
+rootfs_l1:
+	if [ ! -d ${PWD}/${ROOTFS_L1} ]; then \
+		sudo apt update && \
+		sudo apt install -y \
+			debootstrap; \
+		\
+		sudo debootstrap \
+			--components=main,contrib,non-free,non-free-firmware \
+			stable \
+			${PWD}/${ROOTFS_L1} \
+			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
+		\
+		sudo chroot \
+			${PWD}/${ROOTFS_L1} \
+			/bin/bash \
+				-c "apt update && apt install -y gdb git make pciutils strace wget"; \
+		\
+		#设置主机名称 \
+		echo "l1" | sudo tee ${PWD}/${ROOTFS_L1}/etc/hostname; \
+		\
+		#设置密码 \
+		sudo chroot ${PWD}/${ROOTFS_L1} /bin/bash -c "passwd -d root"; \
+	fi
+
+	cd ${PWD}/${ROOTFS_L1} && \
+	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_L1}.cpio >/dev/null
+
+	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs'
 
 submodules:
 	git submodule

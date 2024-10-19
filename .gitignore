@@ -1,3 +1,7 @@
 # 忽略bear和clangd产物
 compile_commands.json
 .cache
+
+# 忽略rootfs产物
+rootfs_l1
+rootfs_l1.cpio
