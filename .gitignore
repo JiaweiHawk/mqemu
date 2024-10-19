@@ -1,0 +1,3 @@
+# 忽略bear和clangd产物
+compile_commands.json
+.cache
