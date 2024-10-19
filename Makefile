@@ -2,7 +2,18 @@ PWD						:= $(shell pwd)
 NPROC					:= $(shell nproc)
 ROOTFS_L1 				:= rootfs_l1
 
-.PHONY: env kernel qemu rootfs_l1 submodules
+define QEMU_OPTIONS_L0
+	-cpu host \
+	-smp 4 \
+	-m 4G \
+	-kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
+	-append "rdinit=/sbin/init root=sr0 panic=-1 console=ttyS0 nokaslr" \
+	-initrd ${PWD}/${ROOTFS_L1}.cpio \
+	-enable-kvm \
+	-no-reboot
+endef #define QEMU_OPTIONS_L0
+
+.PHONY: env kernel qemu rootfs_l1 run_l1 submodules
 
 env: kernel qemu rootfs_l1
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
@@ -109,6 +120,11 @@ rootfs_l1:
 	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_L1}.cpio >/dev/null
 
 	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs'
+
+run_l1:
+	${PWD}/qemu/build/qemu-system-x86_64 \
+		${QEMU_OPTIONS_L0} \
+		-nographic
 
 submodules:
 	git submodule
