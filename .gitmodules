@@ -1,0 +1,6 @@
+[submodule "kernel"]
+	path = kernel
+	url = https://github.com/torvalds/linux.git
+[submodule "qemu"]
+	path = qemu
+	url = https://github.com/qemu/qemu.git
