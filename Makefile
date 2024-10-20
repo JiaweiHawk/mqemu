@@ -12,6 +12,8 @@ define QEMU_OPTIONS_L0
 	-initrd ${PWD}/${ROOTFS_L1}.cpio \
 	-netdev tap,id=net,ifname=${TAP_L1},script=no,downscript=no \
 	-device virtio-net-pci,netdev=net \
+	-fsdev local,id=mqemu,path=${PWD},security_model=none \
+	-device virtio-9p-pci,fsdev=mqemu,mount_tag=mqemu \
 	-enable-kvm \
 	-no-reboot
 endef #define QEMU_OPTIONS_L0
@@ -151,6 +153,9 @@ rootfs_l1:
 			${PWD}/${ROOTFS_L1} \
 			/bin/bash \
 				-c "apt update && apt install -y gdb git make network-manager pciutils strace wget"; \
+		\
+		#设置mqemu文件夹 \
+		echo "mqemu /root/mqemu 9p trans=virtio 0 0" | sudo tee -a ${PWD}/rootfs/etc/fstab; \
 		\
 		#设置主机名称 \
 		echo "l1" | sudo tee ${PWD}/${ROOTFS_L1}/etc/hostname; \
