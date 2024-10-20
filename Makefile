@@ -135,7 +135,7 @@ rootfs_l1:
 				-c "apt update && apt install -y gdb git make network-manager pciutils strace wget"; \
 		\
 		#设置mqemu文件夹 \
-		echo "mqemu /root/mqemu 9p trans=virtio 0 0" | sudo tee -a ${PWD}/rootfs/etc/fstab; \
+		echo "mqemu /root/mqemu 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/fstab; \
 		\
 		#设置主机名称 \
 		echo "l1" | sudo tee ${PWD}/${ROOTFS_L1}/etc/hostname; \
