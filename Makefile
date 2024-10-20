@@ -167,7 +167,7 @@ rootfs_l1:
 	cd ${PWD}/${ROOTFS_L1} && \
 	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_L1}.cpio >/dev/null
 
-	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs'
+	@echo -e '\033[0;32m[*]\033[0mbuild the l1 rootfs'
 
 run_l1:
 	${PWD}/qemu/build/qemu-system-x86_64 \
