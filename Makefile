@@ -19,7 +19,19 @@ define QEMU_OPTIONS_L0
 	-no-reboot
 endef #define QEMU_OPTIONS_L0
 
-.PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 run_l1 submodules
+define QEMU_OPTIONS_L1
+	-cpu host \
+	-smp 2 \
+	-m 2G \
+	-L ${PWD}/qemu/pc-bios \
+	-kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
+	-append "rdinit=/sbin/init root=sr0 panic=-1 console=ttyS0 nokaslr" \
+	-initrd ${PWD}/${ROOTFS_L2}.cpio \
+	-enable-kvm \
+	-no-reboot
+endef #define QEMU_OPTIONS_L1
+
+.PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 run_l1 run_l2 submodules
 
 env: kernel qemu rootfs_l1 rootfs_l2
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
@@ -132,7 +144,7 @@ rootfs_l1:
 		sudo chroot \
 			${PWD}/${ROOTFS_L1} \
 			/bin/bash \
-				-c "apt update && apt install -y gdb git make network-manager pciutils strace wget"; \
+				-c "apt update && apt install -y gdb git libfdt-dev libglib2.0-dev libpixman-1-dev make network-manager pciutils strace wget"; \
 		\
 		#设置mqemu文件夹 \
 		echo "mqemu /root/mqemu 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/fstab; \
@@ -156,7 +168,6 @@ rootfs_l2:
 			debootstrap; \
 		\
 		sudo debootstrap \
-			--components=main,contrib,non-free,non-free-firmware \
 			stable \
 			${PWD}/${ROOTFS_L2} \
 			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
@@ -164,7 +175,7 @@ rootfs_l2:
 		sudo chroot \
 			${PWD}/${ROOTFS_L2} \
 			/bin/bash \
-				-c "apt update && apt install -y gdb git make network-manager pciutils strace wget"; \
+				-c "apt update && apt install -y pciutils strace wget"; \
 		\
 		#设置主机名称 \
 		echo "l2" | sudo tee ${PWD}/${ROOTFS_L2}/etc/hostname; \
@@ -181,6 +192,11 @@ rootfs_l2:
 run_l1:
 	${PWD}/qemu/build/qemu-system-x86_64 \
 		${QEMU_OPTIONS_L0} \
+		-nographic
+
+run_l2:
+	${PWD}/qemu/build/qemu-system-x86_64 \
+		${QEMU_OPTIONS_L1} \
 		-nographic
 
 submodules:
