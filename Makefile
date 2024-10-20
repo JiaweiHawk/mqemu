@@ -2,6 +2,7 @@ PWD						:= $(shell pwd)
 NPROC					:= $(shell nproc)
 ROOTFS_L1 				:= rootfs_l1
 TAP_L1 					:= tap1
+ROOTFS_L2 				:= rootfs_l2
 
 define QEMU_OPTIONS_L0
 	-cpu host \
@@ -18,9 +19,9 @@ define QEMU_OPTIONS_L0
 	-no-reboot
 endef #define QEMU_OPTIONS_L0
 
-.PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 run_l1 submodules
+.PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 run_l1 submodules
 
-env: kernel qemu rootfs_l1
+env: kernel qemu rootfs_l1 rootfs_l2
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
 
 create_net_l1:
@@ -171,6 +172,35 @@ rootfs_l1:
 	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_L1}.cpio >/dev/null
 
 	@echo -e '\033[0;32m[*]\033[0mbuild the l1 rootfs'
+
+rootfs_l2:
+	if [ ! -d ${PWD}/${ROOTFS_L2} ]; then \
+		sudo apt update && \
+		sudo apt install -y \
+			debootstrap; \
+		\
+		sudo debootstrap \
+			--components=main,contrib,non-free,non-free-firmware \
+			stable \
+			${PWD}/${ROOTFS_L2} \
+			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
+		\
+		sudo chroot \
+			${PWD}/${ROOTFS_L2} \
+			/bin/bash \
+				-c "apt update && apt install -y gdb git make network-manager pciutils strace wget"; \
+		\
+		#设置主机名称 \
+		echo "l2" | sudo tee ${PWD}/${ROOTFS_L2}/etc/hostname; \
+		\
+		#设置密码 \
+		sudo chroot ${PWD}/${ROOTFS_L2} /bin/bash -c "passwd -d root"; \
+	fi
+
+	cd ${PWD}/${ROOTFS_L2} && \
+	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_L2}.cpio >/dev/null
+
+	@echo -e '\033[0;32m[*]\033[0mbuild the l2 rootfs'
 
 run_l1:
 	${PWD}/qemu/build/qemu-system-x86_64 \
