@@ -44,6 +44,7 @@ create_net_l1:
 		-o $$(ip route | tail -n -1 | awk '{print $$3}') \
 		-j MASQUERADE
 
+	@echo -e '\033[0;32m[*]\033[0mcreate the network for l1'
 
 delete_net_l1:
 	#删除NAT规则
@@ -62,6 +63,8 @@ delete_net_l1:
 
 	#关闭ip转发
 	sudo sysctl -w net.ipv4.ip_forward=0
+
+	@echo -e '\033[0;32m[*]\033[0mdelete the network from l1'
 
 kernel:
 	sudo apt update && \
