@@ -78,34 +78,10 @@ kernel:
 
 	${PWD}/kernel/scripts/config \
 		--file ${PWD}/kernel/.config \
-		-e CONFIG_DEBUG_INFO_DWARF5 && \
-	yes "" | make \
-		-C ${PWD}/kernel \
-		oldconfig
-
-	${PWD}/kernel/scripts/config \
-		--file ${PWD}/kernel/.config \
-		-e CONFIG_GDB_SCRIPTS && \
-	yes "" | make \
-		-C ${PWD}/kernel \
-		oldconfig
-
-	${PWD}/kernel/scripts/config \
-		--file ${PWD}/kernel/.config \
-		-e CONFIG_X86_X2APIC && \
-	yes "" | make \
-		-C ${PWD}/kernel \
-		oldconfig
-
-	${PWD}/kernel/scripts/config \
-		--file ${PWD}/kernel/.config \
-		-e CONFIG_KVM && \
-	yes "" | make \
-		-C ${PWD}/kernel \
-		oldconfig
-
-	${PWD}/kernel/scripts/config \
-		--file ${PWD}/kernel/.config \
+		-e CONFIG_DEBUG_INFO_DWARF5 \
+		-e CONFIG_GDB_SCRIPTS \
+		-e CONFIG_X86_X2APIC \
+		-e CONFIG_KVM \
 		-e CONFIG_$(shell lsmod | grep "^kvm_" | awk '{print $$1}') && \
 	yes "" | make \
 		-C ${PWD}/kernel \
