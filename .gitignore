@@ -2,6 +2,10 @@
 compile_commands.json
 .cache
 
+# 忽略busybox
+busybox-1.37.0.tar.bz2
+busybox-1.37.0
+
 # 忽略rootfs产物
 rootfs_l1
 rootfs_l1.cpio

@@ -3,6 +3,7 @@ NPROC					:= $(shell nproc)
 ROOTFS_L1 				:= rootfs_l1
 TAP_L1 					:= tap1
 ROOTFS_L2 				:= rootfs_l2
+BUSYBOX 				:= busybox-1.37.0
 
 define QEMU_OPTIONS_L0
 	-cpu host \
@@ -25,7 +26,7 @@ define QEMU_OPTIONS_L1
 	-m 2G \
 	-L ${PWD}/qemu/pc-bios \
 	-kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
-	-append "rdinit=/sbin/init root=sr0 panic=-1 console=ttyS0 nokaslr" \
+	-append "rdinit=/init root=sr0 panic=-1 console=ttyS0 nokaslr" \
 	-initrd ${PWD}/${ROOTFS_L2}.cpio \
 	-enable-kvm \
 	-no-reboot
@@ -162,26 +163,21 @@ rootfs_l1:
 	@echo -e '\033[0;32m[*]\033[0mbuild the l1 rootfs'
 
 rootfs_l2:
+	if [ ! -d ${PWD}/${BUSYBOX} ]; then \
+		wget https://busybox.net/downloads/${BUSYBOX}.tar.bz2; \
+		tar -jxvf ${PWD}/${BUSYBOX}.tar.bz2; \
+		make -C ${PWD}/${BUSYBOX} defconfig; \
+		sed -i 's|^# \(CONFIG_STATIC\).*$$|\1=y|' ${PWD}/${BUSYBOX}/.config; \
+		make -C ${PWD}/${BUSYBOX} -j ${NPROC}; \
+	fi
+
 	if [ ! -d ${PWD}/${ROOTFS_L2} ]; then \
-		sudo apt update && \
-		sudo apt install -y \
-			debootstrap; \
+		mkdir -p ${PWD}/${ROOTFS_L2}; \
+		make -C ${PWD}/${BUSYBOX} CONFIG_PREFIX=${PWD}/${ROOTFS_L2} install; \
 		\
-		sudo debootstrap \
-			stable \
-			${PWD}/${ROOTFS_L2} \
-			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
-		\
-		sudo chroot \
-			${PWD}/${ROOTFS_L2} \
-			/bin/bash \
-				-c "apt update && apt install -y pciutils strace wget"; \
-		\
-		#设置主机名称 \
-		echo "l2" | sudo tee ${PWD}/${ROOTFS_L2}/etc/hostname; \
-		\
-		#设置密码 \
-		sudo chroot ${PWD}/${ROOTFS_L2} /bin/bash -c "passwd -d root"; \
+		echo "#!/bin/busybox sh" | sudo tee ${PWD}/${ROOTFS_L2}/init; \
+		echo "/bin/busybox sh" | sudo tee -a ${PWD}/${ROOTFS_L2}/init; \
+		chmod +x ${PWD}/${ROOTFS_L2}/init; \
 	fi
 
 	cd ${PWD}/${ROOTFS_L2} && \
