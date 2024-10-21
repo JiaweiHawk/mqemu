@@ -200,7 +200,7 @@ run_l2:
 		-nographic
 
 submodules:
-	git submodule
+	git submodule \
 		update \
 		--init \
 		--progress \
