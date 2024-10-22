@@ -177,7 +177,7 @@ rootfs_l2:
 		\
 		echo "#!/bin/busybox sh" | sudo tee ${PWD}/${ROOTFS_L2}/init; \
 		echo "/bin/busybox sh" | sudo tee -a ${PWD}/${ROOTFS_L2}/init; \
-		chmod +x ${PWD}/${ROOTFS_L2}/init; \
+		sudo chmod +x ${PWD}/${ROOTFS_L2}/init; \
 	fi
 
 	cd ${PWD}/${ROOTFS_L2} && \
