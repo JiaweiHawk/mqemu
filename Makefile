@@ -55,7 +55,7 @@ create_net_l1:
 
 	#添加NAT规则
 	sudo iptables -t nat -A POSTROUTING \
-		-o $$(ip route | grep "default" | awk '{print $$4}') \
+		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-j MASQUERADE
 
 	@echo -e '\033[0;32m[*]\033[0mcreate the network for l1'
@@ -63,7 +63,7 @@ create_net_l1:
 delete_net_l1:
 	#删除NAT规则
 	sudo iptables -t nat -D POSTROUTING \
-		-o $$(ip route | grep "default" | awk '{print $$4}') \
+		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-j MASQUERADE
 
 	#关闭tap
