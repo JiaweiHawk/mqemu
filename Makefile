@@ -1,7 +1,13 @@
 PWD						:= $(shell pwd)
 NPROC					:= $(shell nproc)
 ROOTFS_L1 				:= rootfs_l1
+NET_PREFIX				:= 172.192.168
+NET_MASK				:= 24
 TAP_L1 					:= tap1
+L1_MAC					:= aa:bb:cc:cc:bb:aa
+L1_IP					:= ${NET_PREFIX}.128
+BRIDGE_L2				:= br2
+TAP_L2					:= tap2
 ROOTFS_L2 				:= rootfs_l2
 BUSYBOX 				:= busybox-1.37.0
 
@@ -45,10 +51,15 @@ create_net_l1:
 	sudo ip tuntap add name ${TAP_L1} mode tap
 
 	#添加子网
-	sudo ip addr add 172.192.168.1/24 dev ${TAP_L1}
+	sudo ip addr add ${NET_PREFIX}.1/${NET_MASK} dev ${TAP_L1}
 
 	#启动dhcp服务
-	sudo dnsmasq --interface=${TAP_L1} --bind-interfaces --dhcp-range=172.192.168.2,172.192.168.255 -x ${PWD}/dnsmasq_l1.pid
+	sudo dnsmasq \
+		--interface=${TAP_L1} \
+		--bind-interfaces \
+		--dhcp-range=${NET_PREFIX}.2,${NET_PREFIX}.254 \
+		--dhcp-host=${L1_MAC},${L1_IP} \
+		-x ${PWD}/dnsmasq_l1.pid
 
 	#启动tap
 	sudo ip link set dev ${TAP_L1} up
@@ -145,7 +156,39 @@ rootfs_l1:
 		sudo chroot \
 			${PWD}/${ROOTFS_L1} \
 			/bin/bash \
-				-c "apt update && apt install -y gdb git libfdt-dev libglib2.0-dev libpixman-1-dev make network-manager pciutils strace wget"; \
+				-c "apt update && apt install -y gdb git libfdt-dev libglib2.0-dev libpixman-1-dev make pciutils strace systemd-resolved wget"; \
+		\
+		#创建bridge \
+		echo "[NetDev]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.netdev; \
+		echo "Name=${BRIDGE_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.netdev; \
+		echo "Kind=bridge" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.netdev; \
+		\
+		#设置bridge \
+		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.network; \
+		echo "Name=${BRIDGE_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.network; \
+		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.network; \
+		echo "DHCP=yes" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.network; \
+		echo "MACAddress=${L1_MAC}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.netdev; \
+		\
+		#创建tap \
+		echo "[NetDev]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.netdev; \
+		echo "Name=${TAP_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.netdev; \
+		echo "Kind=tap" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.netdev; \
+		\
+		#设置tap \
+		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.network; \
+		echo "Name=${TAP_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.network; \
+		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.network; \
+		echo "Bridge=${BRIDGE_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.network; \
+		\
+		#设置物理网卡 \
+		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
+		echo "Name=enp0s3" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
+		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
+		echo "Bridge=${BRIDGE_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
+		\
+		#启动systemd-networkd \
+		sudo chroot ${PWD}/${ROOTFS_L1} /bin/bash -c "systemctl enable systemd-networkd"; \
 		\
 		#设置mqemu文件夹 \
 		echo "mqemu /root/mqemu 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/fstab; \
