@@ -38,7 +38,7 @@ define QEMU_OPTIONS_L1
 	-no-reboot
 endef #define QEMU_OPTIONS_L1
 
-.PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 run_l1 run_l2 submodules
+.PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 run_l1 run_l2 ssh_l1 submodules
 
 env: kernel qemu rootfs_l1 rootfs_l2
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
@@ -156,7 +156,7 @@ rootfs_l1:
 		sudo chroot \
 			${PWD}/${ROOTFS_L1} \
 			/bin/bash \
-				-c "apt update && apt install -y gdb git libfdt-dev libglib2.0-dev libpixman-1-dev make pciutils strace systemd-resolved wget"; \
+				-c "apt update && apt install -y gdb git libfdt-dev libglib2.0-dev libpixman-1-dev make openssh-server pciutils strace systemd-resolved wget"; \
 		\
 		#创建bridge \
 		echo "[NetDev]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.netdev; \
@@ -189,6 +189,10 @@ rootfs_l1:
 		\
 		#启动systemd-networkd \
 		sudo chroot ${PWD}/${ROOTFS_L1} /bin/bash -c "systemctl enable systemd-networkd"; \
+		\
+		#设置ssh服务器 \
+		sudo sed -i "s|^#PermitEmptyPasswords no|PermitEmptyPasswords yes|" ${PWD}/${ROOTFS_L1}/etc/ssh/sshd_config; \
+		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_L1}/etc/ssh/sshd_config; \
 		\
 		#设置mqemu文件夹 \
 		echo "mqemu /root/mqemu 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/fstab; \
@@ -237,6 +241,9 @@ run_l2:
 	${PWD}/qemu/build/qemu-system-x86_64 \
 		${QEMU_OPTIONS_L1} \
 		-nographic
+
+ssh_l1:
+	ssh root@${L1_IP}
 
 submodules:
 	git submodule \
