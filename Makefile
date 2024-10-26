@@ -3,30 +3,30 @@ NPROC					:= $(shell nproc)
 ROOTFS_L1 				:= rootfs_l1
 NET_PREFIX				:= 172.192.168
 NET_MASK				:= 24
-TAP_L1 					:= tap1
+TAP_L0					:= tap0
 L1_MAC					:= aa:bb:cc:cc:bb:aa
 L1_IP					:= ${NET_PREFIX}.128
-BRIDGE_L2				:= br2
-TAP_L2					:= tap2
+BRIDGE_L1				:= br1
+TAP_L1					:= tap1
 ROOTFS_L2 				:= rootfs_l2
 BUSYBOX 				:= busybox-1.37.0
 
-define QEMU_OPTIONS_L0
+define QEMU_OPTIONS_L1
 	-cpu host \
 	-smp 4 \
 	-m 4G \
 	-kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
 	-append "rdinit=/sbin/init root=sr0 panic=-1 console=ttyS0 nokaslr" \
 	-initrd ${PWD}/${ROOTFS_L1}.cpio \
-	-netdev tap,id=net,ifname=${TAP_L1},script=no,downscript=no \
+	-netdev tap,id=net,ifname=${TAP_L0},script=no,downscript=no \
 	-device virtio-net-pci,netdev=net \
 	-fsdev local,id=mqemu,path=${PWD},security_model=none \
 	-device virtio-9p-pci,fsdev=mqemu,mount_tag=mqemu \
 	-enable-kvm \
 	-no-reboot
-endef #define QEMU_OPTIONS_L0
+endef #define QEMU_OPTIONS_L1
 
-define QEMU_OPTIONS_L1
+define QEMU_OPTIONS_L2
 	-cpu host \
 	-smp 2 \
 	-m 2G \
@@ -36,7 +36,7 @@ define QEMU_OPTIONS_L1
 	-initrd ${PWD}/${ROOTFS_L2}.cpio \
 	-enable-kvm \
 	-no-reboot
-endef #define QEMU_OPTIONS_L1
+endef #define QEMU_OPTIONS_L2
 
 .PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 run_l1 run_l2 ssh_l1 submodules
 
@@ -48,21 +48,21 @@ create_net_l1:
 	sudo sysctl -w net.ipv4.ip_forward=1
 
 	#创建tap
-	sudo ip tuntap add name ${TAP_L1} mode tap
+	sudo ip tuntap add name ${TAP_L0} mode tap
 
 	#添加子网
-	sudo ip addr add ${NET_PREFIX}.1/${NET_MASK} dev ${TAP_L1}
+	sudo ip addr add ${NET_PREFIX}.1/${NET_MASK} dev ${TAP_L0}
 
 	#启动dhcp服务
 	sudo dnsmasq \
-		--interface=${TAP_L1} \
+		--interface=${TAP_L0} \
 		--bind-interfaces \
 		--dhcp-range=${NET_PREFIX}.2,${NET_PREFIX}.254 \
 		--dhcp-host=${L1_MAC},${L1_IP} \
-		-x ${PWD}/dnsmasq_l1.pid
+		-x ${PWD}/dnsmasq.pid
 
 	#启动tap
-	sudo ip link set dev ${TAP_L1} up
+	sudo ip link set dev ${TAP_L0} up
 
 	#添加NAT规则
 	sudo iptables -t nat -A POSTROUTING \
@@ -78,13 +78,13 @@ delete_net_l1:
 		-j MASQUERADE
 
 	#关闭tap
-	sudo ip link set dev ${TAP_L1} down
+	sudo ip link set dev ${TAP_L0} down
 
 	#关闭dhcp服务
-	sudo kill -TERM $$(cat ${PWD}/dnsmasq_l1.pid)
+	sudo kill -TERM $$(cat ${PWD}/dnsmasq.pid)
 
 	#删除tap
-	sudo ip tuntap del ${TAP_L1} mode tap
+	sudo ip tuntap del ${TAP_L0} mode tap
 
 	#关闭ip转发
 	sudo sysctl -w net.ipv4.ip_forward=0
@@ -159,33 +159,33 @@ rootfs_l1:
 				-c "apt update && apt install -y gdb git libfdt-dev libglib2.0-dev libpixman-1-dev make openssh-server pciutils strace systemd-resolved wget"; \
 		\
 		#创建bridge \
-		echo "[NetDev]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.netdev; \
-		echo "Name=${BRIDGE_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.netdev; \
-		echo "Kind=bridge" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.netdev; \
+		echo "[NetDev]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.netdev; \
+		echo "Name=${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.netdev; \
+		echo "Kind=bridge" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.netdev; \
 		\
 		#设置bridge \
-		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.network; \
-		echo "Name=${BRIDGE_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.network; \
-		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.network; \
-		echo "DHCP=yes" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.network; \
-		echo "MACAddress=${L1_MAC}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L2}.netdev; \
+		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.network; \
+		echo "Name=${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.network; \
+		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.network; \
+		echo "DHCP=yes" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.network; \
+		echo "MACAddress=${L1_MAC}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.netdev; \
 		\
 		#创建tap \
-		echo "[NetDev]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.netdev; \
-		echo "Name=${TAP_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.netdev; \
-		echo "Kind=tap" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.netdev; \
+		echo "[NetDev]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.netdev; \
+		echo "Name=${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.netdev; \
+		echo "Kind=tap" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.netdev; \
 		\
 		#设置tap \
-		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.network; \
-		echo "Name=${TAP_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.network; \
-		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.network; \
-		echo "Bridge=${BRIDGE_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L2}.network; \
+		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
+		echo "Name=${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
+		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
+		echo "Bridge=${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
 		\
 		#设置物理网卡 \
-		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
-		echo "Name=enp0s3" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
-		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
-		echo "Bridge=${BRIDGE_L2}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
+		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/ethernet.network; \
+		echo "Name=enp0s3" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/ethernet.network; \
+		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/ethernet.network; \
+		echo "Bridge=${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/ethernet.network; \
 		\
 		#启动systemd-networkd \
 		sudo chroot ${PWD}/${ROOTFS_L1} /bin/bash -c "systemctl enable systemd-networkd"; \
@@ -234,12 +234,12 @@ rootfs_l2:
 
 run_l1:
 	${PWD}/qemu/build/qemu-system-x86_64 \
-		${QEMU_OPTIONS_L0} \
+		${QEMU_OPTIONS_L1} \
 		-nographic
 
 run_l2:
 	${PWD}/qemu/build/qemu-system-x86_64 \
-		${QEMU_OPTIONS_L1} \
+		${QEMU_OPTIONS_L2} \
 		-nographic
 
 ssh_l1:

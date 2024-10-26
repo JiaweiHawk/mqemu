@@ -13,4 +13,4 @@ rootfs_l2
 rootfs_l2.cpio
 
 # 忽略dhcp运行产物
-dnsmasq_l1.pid
+dnsmasq.pid
