@@ -8,6 +8,8 @@ L1_MAC					:= aa:bb:cc:cc:bb:aa
 L1_IP					:= ${NET_PREFIX}.128
 BRIDGE_L1				:= br1
 TAP_L1					:= tap1
+L2_MAC					:= cc:bb:aa:aa:bb:cc
+L2_IP					:= ${NET_PREFIX}.129
 ROOTFS_L2 				:= rootfs_l2
 BUSYBOX 				:= busybox-1.37.0
 
@@ -32,8 +34,10 @@ define QEMU_OPTIONS_L2
 	-m 2G \
 	-L ${PWD}/qemu/pc-bios \
 	-kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
-	-append "rdinit=/init root=sr0 panic=-1 console=ttyS0 nokaslr" \
+	-append "rdinit=/sbin/init root=sr0 panic=-1 console=ttyS0 nokaslr" \
 	-initrd ${PWD}/${ROOTFS_L2}.cpio \
+	-netdev tap,id=net,ifname=${TAP_L1},script=no,downscript=no \
+	-device virtio-net-pci,mac=${L2_MAC},netdev=net \
 	-enable-kvm \
 	-no-reboot
 endef #define QEMU_OPTIONS_L2
@@ -59,6 +63,7 @@ create_net_l1:
 		--bind-interfaces \
 		--dhcp-range=${NET_PREFIX}.2,${NET_PREFIX}.254 \
 		--dhcp-host=${L1_MAC},${L1_IP} \
+		--dhcp-host=${L2_MAC},${L2_IP} \
 		-x ${PWD}/dnsmasq.pid
 
 	#启动tap
@@ -106,7 +111,9 @@ kernel:
 		-e CONFIG_GDB_SCRIPTS \
 		-e CONFIG_X86_X2APIC \
 		-e CONFIG_KVM \
-		-e CONFIG_$(shell lsmod | grep "^kvm_" | awk '{print $$1}') && \
+		-e CONFIG_$(shell lsmod | grep "^kvm_" | awk '{print $$1}') \
+		-e CONFIG_TUN \
+		-e CONFIG_BRIDGE \
 	yes "" | make \
 		-C ${PWD}/kernel \
 		oldconfig
@@ -156,46 +163,48 @@ rootfs_l1:
 		sudo chroot \
 			${PWD}/${ROOTFS_L1} \
 			/bin/bash \
-				-c "apt update && apt install -y gdb git libfdt-dev libglib2.0-dev libpixman-1-dev make openssh-server pciutils strace systemd-resolved wget"; \
+				-c "apt update && apt install -y gdb git libfdt-dev libglib2.0-dev libpixman-1-dev make openssh-server pciutils strace wget"; \
 		\
-		#创建bridge \
-		echo "[NetDev]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.netdev; \
-		echo "Name=${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.netdev; \
-		echo "Kind=bridge" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.netdev; \
-		\
-		#设置bridge \
-		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.network; \
-		echo "Name=${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.network; \
-		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.network; \
-		echo "DHCP=yes" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.network; \
-		echo "MACAddress=${L1_MAC}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${BRIDGE_L1}.netdev; \
-		\
-		#创建tap \
-		echo "[NetDev]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.netdev; \
-		echo "Name=${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.netdev; \
-		echo "Kind=tap" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.netdev; \
+		#设置网卡 \
+		echo "iface enp0s3 inet manual" | sudo tee ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "up ip link set dev enp0s3 up" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "down ip link set dev enp0s3 down" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/enp0s3.interface; \
 		\
 		#设置tap \
-		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
-		echo "Name=${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
-		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
-		echo "Bridge=${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/${TAP_L1}.network; \
+		echo "iface ${TAP_L1} inet manual" | sudo tee ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
+		echo "pre-up ip tuntap add name ${TAP_L1} mode tap" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
+		echo "up ip link set dev ${TAP_L1} up" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
+		echo "down ip link set dev ${TAP_L1} down" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
+		echo "post-down ip tuntap del ${TAP_L1} mode tap" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
 		\
-		#设置物理网卡 \
-		echo "[Match]" | sudo tee ${PWD}/${ROOTFS_L1}/etc/systemd/network/ethernet.network; \
-		echo "Name=enp0s3" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/ethernet.network; \
-		echo "[Network]" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/ethernet.network; \
-		echo "Bridge=${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/systemd/network/ethernet.network; \
+		#设置bridge \
+		echo "auto ${BRIDGE_L1}" | sudo tee ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "iface ${BRIDGE_L1} inet manual" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "pre-up ip link add name ${BRIDGE_L1} type bridge" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "pre-up ip link set dev ${BRIDGE_L1} address ${L1_MAC}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ifup enp0s3" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ip link set dev enp0s3 master ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ifup ${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ip link set dev ${TAP_L1} master ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ip link set dev ${BRIDGE_L1} up" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "post-up dhclient -i ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "pre-down dhclient -r ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ip link set dev ${BRIDGE_L1} down" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ip link set dev ${TAP_L1} nomaster" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ifdown ${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ip link set dev enp0s4 nomaster" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ifdown enp0s3" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "post-down ip link del ${BRIDGE_L1} type bridge" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		\
-		#启动systemd-networkd \
-		sudo chroot ${PWD}/${ROOTFS_L1} /bin/bash -c "systemctl enable systemd-networkd"; \
+		#开启ip转发 \
+		sudo sed -i "s|^#net.ipv4.ip_forward=1|net.ipv4.ip_forward=1|" ${PWD}/${ROOTFS_L1}/etc/sysctl.conf; \
 		\
 		#设置ssh服务器 \
 		sudo sed -i "s|^#PermitEmptyPasswords no|PermitEmptyPasswords yes|" ${PWD}/${ROOTFS_L1}/etc/ssh/sshd_config; \
 		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_L1}/etc/ssh/sshd_config; \
 		\
 		#设置mqemu文件夹 \
-		echo "mqemu /root/mqemu 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/fstab; \
+		echo "mqemu /root 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/fstab; \
 		\
 		#设置主机名称 \
 		echo "l1" | sudo tee ${PWD}/${ROOTFS_L1}/etc/hostname; \
@@ -219,12 +228,31 @@ rootfs_l2:
 	fi
 
 	if [ ! -d ${PWD}/${ROOTFS_L2} ]; then \
-		mkdir -p ${PWD}/${ROOTFS_L2}; \
+		mkdir -p ${PWD}/${ROOTFS_L2}/etc/init.d \
+			${PWD}/${ROOTFS_L2}/usr/share/udhcp \
+			${PWD}/${ROOTFS_L2}/proc \
+			${PWD}/${ROOTFS_L2}/sys; \
+		\
 		make -C ${PWD}/${BUSYBOX} CONFIG_PREFIX=${PWD}/${ROOTFS_L2} install; \
 		\
-		echo "#!/bin/busybox sh" | sudo tee ${PWD}/${ROOTFS_L2}/init; \
-		echo "/bin/busybox sh" | sudo tee -a ${PWD}/${ROOTFS_L2}/init; \
-		sudo chmod +x ${PWD}/${ROOTFS_L2}/init; \
+		#设置udhcpc \
+		cp ${PWD}/${BUSYBOX}/examples/udhcp/simple.script ${PWD}/${ROOTFS_L2}/usr/share/udhcp/default.script; \
+		\
+		#设置inittab文件 \
+		echo "::sysinit:/etc/init.d/rcS" | sudo tee ${PWD}/${ROOTFS_L2}/etc/inittab; \
+		echo "ttyS0::respawn:/bin/sh" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/inittab; \
+		\
+		#设置初始化脚本 \
+		echo "#!/bin/sh" | sudo tee ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		echo "mount -a" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		echo "/sbin/mdev -s" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		echo "/sbin/ip link set dev eth0 address ${L2_MAC}" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		echo "/sbin/udhcpc -i eth0 -s /usr/share/udhcp/default.script" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		sudo chmod +x ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		\
+		#设置挂载文件信息 \
+		echo "proc /proc proc defaults 0 0" | sudo tee ${PWD}/${ROOTFS_L2}/etc/fstab; \
+		echo "sysfs /sys sysfs defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/fstab; \
 	fi
 
 	cd ${PWD}/${ROOTFS_L2} && \
