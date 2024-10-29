@@ -300,10 +300,10 @@ run_l2:
 		-nographic
 
 ssh_l1:
-	ssh root@${L1_IP}
+	ssh -o "StrictHostKeyChecking no" root@${L1_IP}
 
 ssh_l2:
-	ssh root@${L2_IP}
+	ssh -o "StrictHostKeyChecking no" root@${L2_IP}
 
 submodules:
 	git submodule \
