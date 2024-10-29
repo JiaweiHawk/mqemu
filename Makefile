@@ -12,6 +12,7 @@ L2_MAC					:= cc:bb:aa:aa:bb:cc
 L2_IP					:= ${NET_PREFIX}.129
 ROOTFS_L2 				:= rootfs_l2
 BUSYBOX 				:= busybox-1.37.0
+DROPBEAR				:= dropbear-2024.85
 
 define QEMU_OPTIONS_L1
 	-cpu host \
@@ -42,7 +43,7 @@ define QEMU_OPTIONS_L2
 	-no-reboot
 endef #define QEMU_OPTIONS_L2
 
-.PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 run_l1 run_l2 ssh_l1 submodules
+.PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 run_l1 run_l2 ssh_l1 ssh_l2 submodules
 
 env: kernel qemu rootfs_l1 rootfs_l2
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
@@ -227,13 +228,35 @@ rootfs_l2:
 		make -C ${PWD}/${BUSYBOX} -j ${NPROC}; \
 	fi
 
+	if [ ! -d ${PWD}/${DROPBEAR} ]; then \
+		sudo apt update && \
+			sudo apt install -y autoconf; \
+		wget https://matt.ucc.asn.au/dropbear/${DROPBEAR}.tar.bz2; \
+		tar -jxvf ${PWD}/${DROPBEAR}.tar.bz2; \
+		cd ${PWD}/${DROPBEAR} && \
+			autoconf && \
+			autoheader && \
+			./configure \
+				--disable-zlib --disable-harden \
+				--enable-static && \
+			make PROGRAMS="dropbear scp" && \
+			make strip; \
+	fi
+
 	if [ ! -d ${PWD}/${ROOTFS_L2} ]; then \
-		mkdir -p ${PWD}/${ROOTFS_L2}/etc/init.d \
-			${PWD}/${ROOTFS_L2}/usr/share/udhcp \
+		mkdir -p ${PWD}/${ROOTFS_L2}/dev/pts \
+			${PWD}/${ROOTFS_L2}/etc/dropbear \
+			${PWD}/${ROOTFS_L2}/etc/init.d \
+			${PWD}/${ROOTFS_L2}/home/root \
 			${PWD}/${ROOTFS_L2}/proc \
-			${PWD}/${ROOTFS_L2}/sys; \
+			${PWD}/${ROOTFS_L2}/sys \
+			${PWD}/${ROOTFS_L2}/usr/share/udhcp; \
+		\
+		touch ${PWD}/${ROOTFS_L2}/etc/passwd \
+			${PWD}/${ROOTFS_L2}/etc/group; \
 		\
 		make -C ${PWD}/${BUSYBOX} CONFIG_PREFIX=${PWD}/${ROOTFS_L2} install; \
+		make -C ${PWD}/${DROPBEAR} install DESTDIR=${PWD}/${ROOTFS_L2}; \
 		\
 		#设置udhcpc \
 		cp ${PWD}/${BUSYBOX}/examples/udhcp/simple.script ${PWD}/${ROOTFS_L2}/usr/share/udhcp/default.script; \
@@ -247,11 +270,17 @@ rootfs_l2:
 		echo "mount -a" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
 		echo "/sbin/mdev -s" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
 		echo "/sbin/ip link set dev eth0 address ${L2_MAC}" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
-		echo "/sbin/udhcpc -i eth0 -s /usr/share/udhcp/default.script" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		echo "/sbin/syslogd -K" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		echo "/sbin/udhcpc -i eth0 -s /usr/share/udhcp/default.script -S" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		echo "/usr/sbin/addgroup -S -g 0 root" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		echo "/usr/sbin/adduser -S -u 0 -G root -s /bin/sh -D root" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		echo "/usr/bin/passwd -d root" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		echo "/usr/local/sbin/dropbear -BRp 22" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
 		sudo chmod +x ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
 		\
 		#设置挂载文件信息 \
-		echo "proc /proc proc defaults 0 0" | sudo tee ${PWD}/${ROOTFS_L2}/etc/fstab; \
+		echo "devpts /dev/pts devpts defaults 0 0" | sudo tee ${PWD}/${ROOTFS_L2}/etc/fstab; \
+		echo "proc /proc proc defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/fstab; \
 		echo "sysfs /sys sysfs defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/fstab; \
 	fi
 
@@ -272,6 +301,9 @@ run_l2:
 
 ssh_l1:
 	ssh root@${L1_IP}
+
+ssh_l2:
+	ssh root@${L2_IP}
 
 submodules:
 	git submodule \

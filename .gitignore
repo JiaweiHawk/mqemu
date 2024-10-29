@@ -6,6 +6,10 @@ compile_commands.json
 busybox-1.37.0.tar.bz2
 busybox-1.37.0
 
+# 忽略dropbear
+dropbear-2024.85.tar.bz2
+dropbear-2024.85
+
 # 忽略rootfs产物
 rootfs_l1
 rootfs_l1.cpio
