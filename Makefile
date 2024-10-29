@@ -231,7 +231,7 @@ rootfs_l2:
 	if [ ! -d ${PWD}/${DROPBEAR} ]; then \
 		sudo apt update && \
 			sudo apt install -y autoconf; \
-		wget https://matt.ucc.asn.au/dropbear/${DROPBEAR}.tar.bz2; \
+		wget https://dropbear.nl/mirror/releases/${DROPBEAR}.tar.bz2; \
 		tar -jxvf ${PWD}/${DROPBEAR}.tar.bz2; \
 		cd ${PWD}/${DROPBEAR} && \
 			autoconf && \
