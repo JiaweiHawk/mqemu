@@ -13,6 +13,7 @@ L2_IP					:= ${NET_PREFIX}.129
 ROOTFS_L2 				:= rootfs_l2
 BUSYBOX 				:= busybox-1.37.0
 DROPBEAR				:= dropbear-2024.85
+CONSOLE_L1_PORT			:= 1234
 
 define QEMU_OPTIONS_L1
 	-cpu host \
@@ -43,7 +44,8 @@ define QEMU_OPTIONS_L2
 	-nographic -no-reboot
 endef #define QEMU_OPTIONS_L2
 
-.PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 run_l1 run_l2 ssh_l1 ssh_l2 submodules
+.PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 \
+	console_qemu_l1 debug_qemu_l1 run_l1 run_l2 ssh_l1 ssh_l2 submodules
 
 env: kernel qemu rootfs_l1 rootfs_l2
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
@@ -288,6 +290,19 @@ rootfs_l2:
 	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_L2}.cpio >/dev/null
 
 	@echo -e '\033[0;32m[*]\033[0mbuild the l2 rootfs'
+
+console_qemu_l1:
+	nc localhost ${CONSOLE_L1_PORT}
+
+debug_qemu_l1:
+	gdb \
+		-ex "handle SIGUSR1 noprint" -ex "set confirm on" \
+		--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
+		--args \
+			${PWD}/qemu/build/qemu-system-x86_64 \
+				${QEMU_OPTIONS_L1} \
+				-monitor none \
+				-serial tcp::${CONSOLE_L1_PORT},server,nowait
 
 run_l1:
 	${PWD}/qemu/build/qemu-system-x86_64 \
