@@ -6,6 +6,7 @@ NET_MASK				:= 24
 TAP_L0					:= tap0
 L1_MAC					:= aa:bb:cc:cc:bb:aa
 L1_IP					:= ${NET_PREFIX}.128
+L1_LIBVIRT_NAME 		:= l1
 BRIDGE_L1				:= br1
 TAP_L1					:= tap1
 L2_MAC					:= cc:bb:aa:aa:bb:cc
@@ -13,22 +14,23 @@ L2_IP					:= ${NET_PREFIX}.129
 ROOTFS_L2 				:= rootfs_l2
 BUSYBOX 				:= busybox-1.37.0
 DROPBEAR				:= dropbear-2024.85
-CONSOLE_L1_PORT			:= 1234
 GDB_KERNEL_L1_PORT		:= 1235
+CONSOLE_L1_PORT			:= 1234
+SHARE_TAG 				:= share9p
 
 define QEMU_OPTIONS_L1
-	-cpu host \
-	-smp 4 \
-	-m 4G \
-	-kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
-	-append "rdinit=/sbin/init root=sr0 panic=-1 console=ttyS0 nokaslr" \
-	-initrd ${PWD}/${ROOTFS_L1}.cpio \
-	-netdev tap,id=net,ifname=${TAP_L0},script=no,downscript=no \
-	-device virtio-net-pci,netdev=net \
-	-fsdev local,id=mqemu,path=${PWD},security_model=none \
-	-device virtio-9p-pci,fsdev=mqemu,mount_tag=mqemu \
-	-enable-kvm \
-	-nographic -no-reboot
+       -cpu host \
+       -smp 4 \
+       -m 4G \
+       -kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
+       -append "rdinit=/sbin/init panic=-1 console=ttyS0 nokaslr" \
+       -initrd ${PWD}/${ROOTFS_L1}.cpio \
+       -netdev tap,id=net,ifname=${TAP_L0},script=no,downscript=no \
+       -device virtio-net-pci,netdev=net \
+       -fsdev local,id=share,path=${PWD},security_model=none \
+       -device virtio-9p-pci,fsdev=share,mount_tag=${SHARE_TAG} \
+       -enable-kvm \
+       -nographic -no-reboot
 endef #define QEMU_OPTIONS_L1
 
 define QEMU_OPTIONS_L2
@@ -37,7 +39,7 @@ define QEMU_OPTIONS_L2
 	-m 2G \
 	-L ${PWD}/qemu/pc-bios \
 	-kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
-	-append "rdinit=/sbin/init root=sr0 panic=-1 console=ttyS0 nokaslr" \
+	-append "rdinit=/sbin/init panic=-1 console=ttyS0 nokaslr" \
 	-initrd ${PWD}/${ROOTFS_L2}.cpio \
 	-netdev tap,id=net,ifname=${TAP_L1},script=no,downscript=no \
 	-device virtio-net-pci,mac=${L2_MAC},netdev=net \
@@ -45,13 +47,9 @@ define QEMU_OPTIONS_L2
 	-nographic -no-reboot
 endef #define QEMU_OPTIONS_L2
 
-.PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 \
-	console_qemu_l1 debug_qemu_l1 gdb_kernel_l1 run_l1 run_l2 ssh_l1 ssh_l2 submodules
+.PHONY: build console_l1 debug_l1 fini_env fini_l1 gdb_kernel_l1 init_env init_l1 kernel libvirt qemu rootfs_l1 rootfs_l2 run_l2 ssh_l1 ssh_l2 submodules
 
-env: kernel qemu rootfs_l1 rootfs_l2
-	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
-
-create_net_l1:
+init_env:
 	#开启ip转发
 	sudo sysctl -w net.ipv4.ip_forward=1
 
@@ -78,9 +76,15 @@ create_net_l1:
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-j MASQUERADE
 
-	@echo -e '\033[0;32m[*]\033[0mcreate the network for l1'
+	#启动libvirtd
+	${PWD}/libvirt/build/src/libvirtd -d
 
-delete_net_l1:
+	@echo -e '\033[0;32m[*]\033[0minit the environment'
+
+fini_env:
+	#结束libvirtd
+	kill -s TERM $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
+
 	#删除NAT规则
 	sudo iptables -t nat -D POSTROUTING \
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
@@ -98,7 +102,61 @@ delete_net_l1:
 	#关闭ip转发
 	sudo sysctl -w net.ipv4.ip_forward=0
 
-	@echo -e '\033[0;32m[*]\033[0mdelete the network from l1'
+	@echo -e '\033[0;32m[*]\033[0mfini the environment'
+
+debug_l1:
+	gdb \
+		-ex "handle SIGUSR1 noprint" -ex "set confirm on" \
+		--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
+		--args \
+			${PWD}/qemu/build/qemu-system-x86_64 \
+			${QEMU_OPTIONS_L1} \
+			-monitor none \
+			-serial tcp::${CONSOLE_L1_PORT},server \
+			-gdb tcp::${GDB_KERNEL_L1_PORT} -S
+
+init_l1:
+	${PWD}/libvirt/build/run virsh undefine ${L1_LIBVIRT_NAME} || exit 0
+
+	cp ${PWD}/l1.example.xml ${PWD}/l1.xml
+	sed -i "s|{NAME}|${L1_LIBVIRT_NAME}|" ${PWD}/l1.xml
+	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/l1.xml
+	sed -i "s|{INITRD}|${PWD}/${ROOTFS_L1}.cpio|" ${PWD}/l1.xml
+	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/l1.xml
+	sed -i "s|{TAP}|${TAP_L0}|" ${PWD}/l1.xml
+	sed -i "s|{SHARE_HOST}|${PWD}|" ${PWD}/l1.xml
+	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/l1.xml
+	sed -i "s|{CONSOLE_PORT}|${CONSOLE_L1_PORT}|" ${PWD}/l1.xml
+	sed -i "s|{GDB_PORT}|${GDB_KERNEL_L1_PORT}|" ${PWD}/l1.xml
+	${PWD}/libvirt/build/run virsh define ${PWD}/l1.xml
+
+	${PWD}/libvirt/build/run virsh start ${L1_LIBVIRT_NAME}
+
+fini_l1:
+	${PWD}/libvirt/build/run virsh destroy ${L1_LIBVIRT_NAME}
+
+run_l2:
+	${PWD}/qemu/build/qemu-system-x86_64 \
+		${QEMU_OPTIONS_L2}
+
+gdb_kernel_l1:
+	gdb \
+		-ex "set confirm on" \
+		--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
+		--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
+		${PWD}/kernel/vmlinux
+
+console_l1:
+	nc localhost ${CONSOLE_L1_PORT}
+
+ssh_l1:
+	ssh -o "StrictHostKeyChecking no" root@${L1_IP}
+
+ssh_l2:
+	ssh -o "StrictHostKeyChecking no" root@${L2_IP}
+
+build: kernel libvirt qemu rootfs_l1 rootfs_l2
+	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
 
 kernel:
 	sudo apt update && \
@@ -117,7 +175,8 @@ kernel:
 		-e CONFIG_KVM \
 		-e CONFIG_$(shell lsmod | grep "^kvm_" | awk '{print $$1}') \
 		-e CONFIG_TUN \
-		-e CONFIG_BRIDGE \
+		-e CONFIG_BRIDGE
+
 	yes "" | make \
 		-C ${PWD}/kernel \
 		oldconfig
@@ -130,6 +189,24 @@ kernel:
 			-j ${NPROC}
 
 	@echo -e '\033[0;32m[*]\033[0mbuild the linux kernel'
+
+libvirt:
+	if [ ! -d ${PWD}/libvirt/build ]; then \
+		sudo apt update && \
+		sudo apt install -y \
+			docutils gnutls-dev libjson-c-dev libxml2-dev libxml2-utils meson xsltproc; \
+		\
+		meson setup ${PWD}/libvirt/build ${PWD}/libvirt; \
+		meson configure ${PWD}/libvirt/build -Ddriver_qemu=enabled; \
+		\
+	fi
+
+	bear \
+		--append \
+		--output ${PWD}/compile_commands.json \
+		-- ninja -C ${PWD}/libvirt/build
+
+	@echo -e '\033[0;32m[*]\033[0mbuild the libvirt'
 
 qemu:
 	sudo apt update && \
@@ -167,7 +244,7 @@ rootfs_l1:
 		sudo chroot \
 			${PWD}/${ROOTFS_L1} \
 			/bin/bash \
-				-c "apt update && apt install -y gdb git libfdt-dev libglib2.0-dev libpixman-1-dev make openssh-server pciutils strace wget"; \
+				-c "apt update && apt install -y bash-completion gdb git libfdt-dev libglib2.0-dev libpixman-1-dev make openssh-server pciutils strace wget"; \
 		\
 		#设置网卡 \
 		echo "iface enp0s3 inet manual" | sudo tee ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/enp0s3.interface; \
@@ -196,7 +273,7 @@ rootfs_l1:
 		echo "down ip link set dev ${BRIDGE_L1} down" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "down ip link set dev ${TAP_L1} nomaster" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "down ifdown ${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "down ip link set dev enp0s4 nomaster" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ip link set dev enp0s3 nomaster" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "down ifdown enp0s3" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "post-down ip link del ${BRIDGE_L1} type bridge" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		\
@@ -208,7 +285,7 @@ rootfs_l1:
 		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_L1}/etc/ssh/sshd_config; \
 		\
 		#设置mqemu文件夹 \
-		echo "mqemu /root 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/fstab; \
+		echo "${SHARE_TAG} /root 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/fstab; \
 		\
 		#设置主机名称 \
 		echo "l1" | sudo tee ${PWD}/${ROOTFS_L1}/etc/hostname; \
@@ -291,41 +368,6 @@ rootfs_l2:
 	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_L2}.cpio >/dev/null
 
 	@echo -e '\033[0;32m[*]\033[0mbuild the l2 rootfs'
-
-console_qemu_l1:
-	nc localhost ${CONSOLE_L1_PORT}
-
-debug_qemu_l1:
-	gdb \
-		-ex "handle SIGUSR1 noprint" -ex "set confirm on" \
-		--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
-		--args \
-			${PWD}/qemu/build/qemu-system-x86_64 \
-				${QEMU_OPTIONS_L1} \
-				-monitor none \
-				-serial tcp::${CONSOLE_L1_PORT},server,nowait \
-				-gdb tcp::${GDB_KERNEL_L1_PORT} -S
-
-gdb_kernel_l1:
-	gdb \
-		-ex "set confirm on" \
-		--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
-		--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
-		${PWD}/kernel/vmlinux
-
-run_l1:
-	${PWD}/qemu/build/qemu-system-x86_64 \
-		${QEMU_OPTIONS_L1}
-
-run_l2:
-	${PWD}/qemu/build/qemu-system-x86_64 \
-		${QEMU_OPTIONS_L2}
-
-ssh_l1:
-	ssh -o "StrictHostKeyChecking no" root@${L1_IP}
-
-ssh_l2:
-	ssh -o "StrictHostKeyChecking no" root@${L2_IP}
 
 submodules:
 	git submodule \

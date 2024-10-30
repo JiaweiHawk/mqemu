@@ -1,0 +1,48 @@
+<!--参考https://libvirt.org/formatdomain.html-->
+<domain type="kvm" xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+    <name>{NAME}</name>
+    <memory unit="GiB">4</memory>
+    <vcpu>4</vcpu>
+
+    <cpu mode="host-model">
+        <model fallback="forbid"/>
+    </cpu>
+
+    <os>
+        <type arch="x86_64">hvm</type>
+        <kernel>{KERNEL}</kernel>
+        <initrd>{INITRD}</initrd>
+        <cmdline>rdinit=/sbin/init panic=-1 console=ttyS0 nokaslr</cmdline>
+    </os>
+
+    <memoryBacking>
+        <source type="memfd"/>
+        <access mode="shared"/>
+    </memoryBacking>
+
+    <devices>
+        <emulator>{QEMU}</emulator>
+
+        <interface type="ethernet">
+            <target dev="{TAP}" managed="no"/>
+            <model type="virtio-net-pci"/>
+        </interface>
+
+        <filesystem type="mount">
+            <source dir="{SHARE_HOST}"/>
+            <target dir="{SHARE_TAG}"/>
+        </filesystem>
+
+        <serial type="tcp">
+            <source mode="bind" host="127.0.0.1" service="{CONSOLE_PORT}"/>
+            <protocol type="raw"/>
+        </serial>
+    </devices>
+
+    <qemu:commandline>
+        <qemu:arg value="-gdb"/>
+        <qemu:arg value="tcp::{GDB_PORT}"/>
+        <qemu:arg value="-S"/>
+    </qemu:commandline>
+
+</domain>
