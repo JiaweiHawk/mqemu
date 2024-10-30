@@ -14,6 +14,7 @@ ROOTFS_L2 				:= rootfs_l2
 BUSYBOX 				:= busybox-1.37.0
 DROPBEAR				:= dropbear-2024.85
 CONSOLE_L1_PORT			:= 1234
+GDB_KERNEL_L1_PORT		:= 1235
 
 define QEMU_OPTIONS_L1
 	-cpu host \
@@ -45,7 +46,7 @@ define QEMU_OPTIONS_L2
 endef #define QEMU_OPTIONS_L2
 
 .PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 \
-	console_qemu_l1 debug_qemu_l1 run_l1 run_l2 ssh_l1 ssh_l2 submodules
+	console_qemu_l1 debug_qemu_l1 gdb_kernel_l1 run_l1 run_l2 ssh_l1 ssh_l2 submodules
 
 env: kernel qemu rootfs_l1 rootfs_l2
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
@@ -302,7 +303,15 @@ debug_qemu_l1:
 			${PWD}/qemu/build/qemu-system-x86_64 \
 				${QEMU_OPTIONS_L1} \
 				-monitor none \
-				-serial tcp::${CONSOLE_L1_PORT},server,nowait
+				-serial tcp::${CONSOLE_L1_PORT},server,nowait \
+				-gdb tcp::${GDB_KERNEL_L1_PORT} -S
+
+gdb_kernel_l1:
+	gdb \
+		-ex "set confirm on" \
+		--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
+		--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
+		${PWD}/kernel/vmlinux
 
 run_l1:
 	${PWD}/qemu/build/qemu-system-x86_64 \
