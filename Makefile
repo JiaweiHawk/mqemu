@@ -26,7 +26,7 @@ define QEMU_OPTIONS_L1
 	-fsdev local,id=mqemu,path=${PWD},security_model=none \
 	-device virtio-9p-pci,fsdev=mqemu,mount_tag=mqemu \
 	-enable-kvm \
-	-no-reboot
+	-nographic -no-reboot
 endef #define QEMU_OPTIONS_L1
 
 define QEMU_OPTIONS_L2
@@ -40,7 +40,7 @@ define QEMU_OPTIONS_L2
 	-netdev tap,id=net,ifname=${TAP_L1},script=no,downscript=no \
 	-device virtio-net-pci,mac=${L2_MAC},netdev=net \
 	-enable-kvm \
-	-no-reboot
+	-nographic -no-reboot
 endef #define QEMU_OPTIONS_L2
 
 .PHONY: create_net_l1 delete_net_l1 env kernel qemu rootfs_l1 rootfs_l2 run_l1 run_l2 ssh_l1 ssh_l2 submodules
@@ -291,13 +291,11 @@ rootfs_l2:
 
 run_l1:
 	${PWD}/qemu/build/qemu-system-x86_64 \
-		${QEMU_OPTIONS_L1} \
-		-nographic
+		${QEMU_OPTIONS_L1}
 
 run_l2:
 	${PWD}/qemu/build/qemu-system-x86_64 \
-		${QEMU_OPTIONS_L2} \
-		-nographic
+		${QEMU_OPTIONS_L2}
 
 ssh_l1:
 	ssh -o "StrictHostKeyChecking no" root@${L1_IP}
