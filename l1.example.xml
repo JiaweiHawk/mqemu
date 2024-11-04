@@ -4,8 +4,7 @@
     <memory unit="GiB">4</memory>
     <vcpu>4</vcpu>
 
-    <cpu mode="host-model">
-        <model fallback="forbid"/>
+    <cpu mode="host-passthrough">
     </cpu>
 
     <os>
