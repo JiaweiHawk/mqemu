@@ -116,7 +116,7 @@ debug_l1:
 			-gdb tcp::${GDB_KERNEL_L1_PORT} -S
 
 init_l1:
-	${PWD}/libvirt/build/run virsh undefine ${L1_LIBVIRT_NAME} || exit 0
+	${PWD}/libvirt/build/tools/virsh undefine ${L1_LIBVIRT_NAME} || exit 0
 
 	cp ${PWD}/l1.example.xml ${PWD}/l1.xml
 	sed -i "s|{NAME}|${L1_LIBVIRT_NAME}|" ${PWD}/l1.xml
@@ -128,12 +128,12 @@ init_l1:
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/l1.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_L1_PORT}|" ${PWD}/l1.xml
 	sed -i "s|{GDB_PORT}|${GDB_KERNEL_L1_PORT}|" ${PWD}/l1.xml
-	${PWD}/libvirt/build/run virsh define ${PWD}/l1.xml
+	${PWD}/libvirt/build/tools/virsh define ${PWD}/l1.xml
 
-	${PWD}/libvirt/build/run virsh start ${L1_LIBVIRT_NAME}
+	${PWD}/libvirt/build/tools/virsh start ${L1_LIBVIRT_NAME}
 
 fini_l1:
-	${PWD}/libvirt/build/run virsh destroy ${L1_LIBVIRT_NAME}
+	${PWD}/libvirt/build/tools/virsh destroy ${L1_LIBVIRT_NAME}
 
 run_l2:
 	${PWD}/qemu/build/qemu-system-x86_64 \
