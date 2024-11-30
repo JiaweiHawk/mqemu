@@ -21,3 +21,6 @@ dnsmasq.pid
 
 # 忽略l1的libvirt xml
 l1.xml
+
+# 忽略gdb产物
+.gdb_history
