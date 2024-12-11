@@ -153,7 +153,7 @@ gdb_libvirt:
 		-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
 
 console_l1:
-	nc localhost ${CONSOLE_L1_PORT}
+	telnet localhost ${CONSOLE_L1_PORT}
 
 ssh_l1:
 	ssh -o "StrictHostKeyChecking no" root@${L1_IP}
