@@ -77,6 +77,16 @@ init_env:
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-j MASQUERADE
 
+	#添加FORWARD规则
+	sudo iptables -I FORWARD \
+		-i ${TAP_L0} \
+		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
+		-j ACCEPT
+	sudo iptables -I FORWARD \
+		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
+		-o ${TAP_L0} \
+		-j ACCEPT
+
 	#启动libvirtd
 	${PWD}/libvirt/build/src/libvirtd -d
 
@@ -85,6 +95,16 @@ init_env:
 fini_env:
 	#结束libvirtd
 	kill -s TERM $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
+
+	#删除FORWARD规则
+	sudo iptables -D FORWARD \
+		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
+		-o ${TAP_L0} \
+		-j ACCEPT
+	sudo iptables -D FORWARD \
+		-i ${TAP_L0} \
+		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
+		-j ACCEPT
 
 	#删除NAT规则
 	sudo iptables -t nat -D POSTROUTING \
