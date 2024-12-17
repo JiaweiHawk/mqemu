@@ -73,6 +73,7 @@ init_env:
 
 	#添加NAT规则
 	sudo iptables -t nat -A POSTROUTING \
+		-s ${NET_PREFIX}.0/${NET_MASK} \
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-j MASQUERADE
 
@@ -87,6 +88,7 @@ fini_env:
 
 	#删除NAT规则
 	sudo iptables -t nat -D POSTROUTING \
+		-s ${NET_PREFIX}.0/${NET_MASK} \
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-j MASQUERADE
 
