@@ -24,3 +24,6 @@ l1.xml
 
 # 忽略gdb产物
 .gdb_history
+
+# 忽略.bash_history
+.bash_history
