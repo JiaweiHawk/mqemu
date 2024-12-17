@@ -34,7 +34,7 @@
 
         <serial type="tcp">
             <source mode="bind" host="127.0.0.1" service="{CONSOLE_PORT}"/>
-            <protocol type="raw"/>
+            <protocol type="telnet"/>
         </serial>
     </devices>
 
