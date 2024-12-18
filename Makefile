@@ -127,15 +127,18 @@ fini_env:
 	@echo -e '\033[0;32m[*]\033[0mfini the environment'
 
 debug_l1:
-	gdb \
-		-ex "handle SIGUSR1 noprint" -ex "set confirm on" \
-		--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
-		--args \
-			${PWD}/qemu/build/qemu-system-x86_64 \
-			${QEMU_OPTIONS_L1} \
-			-monitor none \
-			-serial telnet::${CONSOLE_L1_PORT},server,nowait \
-			-gdb tcp::${GDB_KERNEL_L1_PORT} -S
+	gnome-terminal \
+		--title "qemu for l1 qemu" \
+		-- \
+		gdb \
+			-ex "handle SIGUSR1 noprint" -ex "set confirm on" \
+			--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
+			--args \
+				${PWD}/qemu/build/qemu-system-x86_64 \
+				${QEMU_OPTIONS_L1} \
+				-monitor none \
+				-serial telnet::${CONSOLE_L1_PORT},server,nowait \
+				-gdb tcp::${GDB_KERNEL_L1_PORT} -S
 
 init_l1:
 	${PWD}/libvirt/build/tools/virsh undefine ${L1_LIBVIRT_NAME} || exit 0
@@ -162,26 +165,41 @@ run_l2:
 		${QEMU_OPTIONS_L2}
 
 gdb_kernel_l1:
-	gdb \
-		-ex "set confirm on" \
-		--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
-		--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
-		${PWD}/kernel/vmlinux
+	gnome-terminal \
+		--title "gdb for l1 kernel" \
+		-- \
+		gdb \
+			-ex "set confirm on" \
+			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
+			--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
+			${PWD}/kernel/vmlinux
 
 gdb_libvirt:
-	gdb \
-		-ex "set confirm on" \
-		-ex "set follow-fork-mode parent" \
-		-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
+	gnome-terminal \
+		--title "gdb for libvirtd" \
+		-- \
+		gdb \
+			-ex "set confirm on" \
+			-ex "set follow-fork-mode parent" \
+			-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
 
 console_l1:
-	telnet localhost ${CONSOLE_L1_PORT}
+	gnome-terminal \
+		--title "console for l1" \
+		-- \
+		telnet localhost ${CONSOLE_L1_PORT}
 
 ssh_l1:
-	ssh -o "StrictHostKeyChecking no" root@${L1_IP}
+	gnome-terminal \
+		--title "ssh for l1" \
+		-- \
+		ssh -o "StrictHostKeyChecking no" root@${L1_IP}
 
 ssh_l2:
-	ssh -o "StrictHostKeyChecking no" root@${L2_IP}
+	gnome-terminal \
+		--title "ssh for l2" \
+		-- \
+		ssh -o "StrictHostKeyChecking no" root@${L2_IP}
 
 build: kernel libvirt qemu rootfs_l1 rootfs_l2
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
