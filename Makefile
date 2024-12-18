@@ -1,22 +1,17 @@
 PWD						:= $(shell pwd)
 NPROC					:= $(shell nproc)
-ROOTFS_L1 				:= rootfs_l1
 NET_PREFIX				:= 172.192.168
 NET_MASK				:= 24
+BUSYBOX 				:= busybox-1.37.0
+DROPBEAR				:= dropbear-2024.85
+SHARE_TAG 				:= share9p
+
+ROOTFS_L1 				:= rootfs_l1
 TAP_L0					:= tap0
 L1_MAC					:= aa:bb:cc:cc:bb:aa
 L1_IP					:= ${NET_PREFIX}.128
-BRIDGE_L1				:= br1
-TAP_L1					:= tap1
-L2_MAC					:= cc:bb:aa:aa:bb:cc
-L2_IP					:= ${NET_PREFIX}.129
-ROOTFS_L2 				:= rootfs_l2
-BUSYBOX 				:= busybox-1.37.0
-DROPBEAR				:= dropbear-2024.85
-GDB_KERNEL_L1_PORT		:= 1235
 CONSOLE_L1_PORT			:= 1234
-SHARE_TAG 				:= share9p
-
+GDB_KERNEL_L1_PORT		:= 1235
 define QEMU_OPTIONS_L1
        -cpu host \
        -smp 4 \
@@ -32,6 +27,11 @@ define QEMU_OPTIONS_L1
        -nographic -no-reboot
 endef #define QEMU_OPTIONS_L1
 
+ROOTFS_L2 				:= rootfs_l2
+BRIDGE_L1				:= br1
+TAP_L1					:= tap1
+L2_MAC					:= cc:bb:aa:aa:bb:cc
+L2_IP					:= ${NET_PREFIX}.129
 define QEMU_OPTIONS_L2
 	-cpu host \
 	-smp 2 \
@@ -46,7 +46,10 @@ define QEMU_OPTIONS_L2
 	-nographic -no-reboot
 endef #define QEMU_OPTIONS_L2
 
-.PHONY: build console_l1 debug_l1 fini_env fini_l1 gdb_kernel_l1 gdb_libvirt gdb_qemu_l1 init_env init_l1 kernel libvirt qemu rootfs_l1 rootfs_l2 run_l2 ssh_l1 ssh_l2 submodules
+.PHONY: build kernel libvirt qemu rootfs_l1 rootfs_l2 submodules \
+		fini_env gdb_libvirtd init_env \
+		console_l1 debug_l1 fini_l1 gdb_kernel_l1 gdb_qemu_l1 init_l1 ssh_l1 \
+		run_l2 ssh_l2
 
 init_env:
 	#开启ip转发
@@ -182,7 +185,7 @@ gdb_kernel_l1:
 			--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
 			${PWD}/kernel/vmlinux
 
-gdb_libvirt:
+gdb_libvirtd:
 	gnome-terminal \
 		--title "gdb for libvirtd" \
 		-- \
