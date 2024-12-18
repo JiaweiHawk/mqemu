@@ -47,7 +47,7 @@ define QEMU_OPTIONS_L2
 	-nographic -no-reboot
 endef #define QEMU_OPTIONS_L2
 
-.PHONY: build console_l1 debug_l1 fini_env fini_l1 gdb_kernel_l1 gdb_libvirt init_env init_l1 kernel libvirt qemu rootfs_l1 rootfs_l2 run_l2 ssh_l1 ssh_l2 submodules
+.PHONY: build console_l1 debug_l1 fini_env fini_l1 gdb_kernel_l1 gdb_libvirt gdb_qemu_l1 init_env init_l1 kernel libvirt qemu rootfs_l1 rootfs_l2 run_l2 ssh_l1 ssh_l2 submodules
 
 init_env:
 	#开启ip转发
@@ -191,6 +191,15 @@ gdb_libvirt:
 			-ex "set confirm on" \
 			-ex "set follow-fork-mode parent" \
 			-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
+
+gdb_qemu_l1:
+	gnome-terminal \
+		--title "gdb for l1 qemu" \
+		-- \
+		gdb \
+			-ex "handle SIGUSR1 noprint" -ex "set confirm on" \
+			--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
+			--pid=$$(cat $$XDG_RUNTIME_DIR/libvirt/qemu/run/${L1_LIBVIRT_NAME}.pid)
 
 console_l1:
 	gnome-terminal \
