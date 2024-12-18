@@ -128,7 +128,7 @@ fini_env:
 
 debug_l1:
 	gnome-terminal \
-		--title "qemu for l1 qemu" \
+		--title "gdb for l1 qemu" \
 		-- \
 		gdb \
 			-ex "handle SIGUSR1 noprint" -ex "set confirm on" \
