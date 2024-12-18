@@ -134,7 +134,7 @@ debug_l1:
 			${PWD}/qemu/build/qemu-system-x86_64 \
 			${QEMU_OPTIONS_L1} \
 			-monitor none \
-			-serial telnet::${CONSOLE_L1_PORT},server \
+			-serial telnet::${CONSOLE_L1_PORT},server,nowait \
 			-gdb tcp::${GDB_KERNEL_L1_PORT} -S
 
 init_l1:
