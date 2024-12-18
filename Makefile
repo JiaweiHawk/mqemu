@@ -46,36 +46,77 @@ define QEMU_OPTIONS_L2
 	-nographic -no-reboot
 endef #define QEMU_OPTIONS_L2
 
-.PHONY: build kernel libvirt qemu rootfs_l1 rootfs_l2 submodules \
+BRIDGE_MIGRATE 			:= br_migrate
+NET_MIGRATE_PREFIX		:= 172.192.169
+NET_MIGRATE_MASK		:= 24
+
+ROOTFS_SRC				:= rootfs_src
+TAP_SRC					:= tap_src
+SRC_MAC					:= aa:aa:cc:cc:aa:aa
+SRC_IP					:= ${NET_MIGRATE_PREFIX}.130
+CONSOLE_SRC_PORT		:= 1236
+GDB_KERNEL_SRC_PORT		:= 1237
+
+ROOTFS_DST				:= rootfs_dst
+TAP_DST					:= tap_dst
+DST_MAC					:= cc:aa:aa:aa:aa:cc
+DST_IP					:= ${NET_MIGRATE_PREFIX}.131
+CONSOLE_DST_PORT		:= 1238
+GDB_KERNEL_DST_PORT		:= 1239
+
+.PHONY: build kernel libvirt qemu rootfs_dst rootfs_l1 rootfs_l2 rootfs_src submodules \
 		fini_env gdb_libvirtd init_env \
 		console_l1 debug_l1 fini_l1 gdb_kernel_l1 gdb_qemu_l1 init_l1 ssh_l1 \
-		run_l2 ssh_l2
+		run_l2 ssh_l2 \
+		console_src console_dst fini_migrate init_migrate
 
 init_env:
 	#开启ip转发
 	sudo sysctl -w net.ipv4.ip_forward=1 || exit 0
 
+	#创建bridge
+	sudo ip link add ${BRIDGE_MIGRATE} type bridge || exit 0
+
 	#创建tap
 	sudo ip tuntap add name ${TAP_L0} mode tap || exit 0
+	sudo ip tuntap add name ${TAP_SRC} mode tap || exit 0
+	sudo ip tuntap add name ${TAP_DST} mode tap || exit 0
 
 	#添加子网
 	sudo ip addr add ${NET_PREFIX}.1/${NET_MASK} dev ${TAP_L0} || exit 0
+	sudo ip addr add ${NET_MIGRATE_PREFIX}.1/${NET_MIGRATE_MASK} dev ${BRIDGE_MIGRATE} || exit 0
 
 	#启动dhcp服务
 	sudo dnsmasq \
-		--interface=${TAP_L0} \
+		--interface=${TAP_L0},${BRIDGE_MIGRATE} \
 		--bind-interfaces \
 		--dhcp-range=${NET_PREFIX}.2,${NET_PREFIX}.254 \
+		--dhcp-range=${NET_MIGRATE_PREFIX}.2,${NET_MIGRATE_PREFIX}.254 \
 		--dhcp-host=${L1_MAC},${L1_IP} \
 		--dhcp-host=${L2_MAC},${L2_IP} \
+		--dhcp-host=${SRC_MAC},${SRC_IP} \
+		--dhcp-host=${DST_MAC},${DST_IP} \
 		-x ${PWD}/dnsmasq.pid || exit 0
 
 	#启动tap
 	sudo ip link set dev ${TAP_L0} up || exit 0
+	sudo ip link set dev ${TAP_SRC} up || exit 0
+	sudo ip link set dev ${TAP_DST} up || exit 0
+
+	#启动bridge
+	sudo ip link set dev ${BRIDGE_MIGRATE} up || exit 0
+
+	#添加tap到bridge
+	sudo ip link set dev ${TAP_SRC} master ${BRIDGE_MIGRATE} || exit 0
+	sudo ip link set dev ${TAP_DST} master ${BRIDGE_MIGRATE} || exit 0
 
 	#添加NAT规则
 	sudo iptables -t nat -A POSTROUTING \
 		-s ${NET_PREFIX}.0/${NET_MASK} \
+		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
+		-j MASQUERADE || exit 0
+	sudo iptables -t nat -A POSTROUTING \
+		-s ${NET_MIGRATE_PREFIX}.0/${NET_MIGRATE_MASK} \
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-j MASQUERADE || exit 0
 
@@ -87,6 +128,14 @@ init_env:
 	sudo iptables -I FORWARD \
 		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-o ${TAP_L0} \
+		-j ACCEPT || exit 0
+	sudo iptables -I FORWARD \
+		-i ${BRIDGE_MIGRATE} \
+		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
+		-j ACCEPT || exit 0
+	sudo iptables -I FORWARD \
+		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
+		-o ${BRIDGE_MIGRATE} \
 		-j ACCEPT || exit 0
 
 	#启动libvirtd
@@ -101,6 +150,14 @@ fini_env:
 	#删除FORWARD规则
 	sudo iptables -D FORWARD \
 		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
+		-o ${BRIDGE_MIGRATE} \
+		-j ACCEPT || exit 0
+	sudo iptables -D FORWARD \
+		-i ${BRIDGE_MIGRATE} \
+		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
+		-j ACCEPT || exit 0
+	sudo iptables -D FORWARD \
+		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-o ${TAP_L0} \
 		-j ACCEPT || exit 0
 	sudo iptables -D FORWARD \
@@ -110,18 +167,36 @@ fini_env:
 
 	#删除NAT规则
 	sudo iptables -t nat -D POSTROUTING \
+		-s ${NET_MIGRATE_PREFIX}.0/${NET_MIGRATE_MASK} \
+		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
+		-j MASQUERADE || exit 0
+	sudo iptables -t nat -D POSTROUTING \
 		-s ${NET_PREFIX}.0/${NET_MASK} \
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-j MASQUERADE || exit 0
 
+	#从bridge删除tap
+	sudo ip link set dev ${TAP_DST} nomaster || exit 0
+	sudo ip link set dev ${TAP_SRC} nomaster || exit 0
+
+	#关闭bridge
+	sudo ip link set dev ${BRIDGE_MIGRATE} down || exit 0
+
 	#关闭tap
+	sudo ip link set dev ${TAP_DST} down || exit 0
+	sudo ip link set dev ${TAP_SRC} down || exit 0
 	sudo ip link set dev ${TAP_L0} down || exit 0
 
 	#关闭dhcp服务
 	sudo kill -TERM $$(cat ${PWD}/dnsmasq.pid) || exit 0
 
 	#删除tap
+	sudo ip tuntap del ${TAP_DST} mode tap || exit 0
+	sudo ip tuntap del ${TAP_SRC} mode tap || exit 0
 	sudo ip tuntap del ${TAP_L0} mode tap || exit 0
+
+	#删除bridge
+	sudo ip link del name ${BRIDGE_MIGRATE} type bridge || exit 0
 
 	#关闭ip转发
 	sudo sysctl -w net.ipv4.ip_forward=0 || exit 0
@@ -221,7 +296,7 @@ ssh_l2:
 		-- \
 		ssh -o "StrictHostKeyChecking no" root@${L2_IP}
 
-build: kernel libvirt qemu rootfs_l1 rootfs_l2
+build: kernel libvirt qemu rootfs_dst rootfs_l1 rootfs_l2 rootfs_src
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
 
 kernel:
@@ -434,6 +509,144 @@ rootfs_l2:
 	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_L2}.cpio >/dev/null
 
 	@echo -e '\033[0;32m[*]\033[0mbuild the l2 rootfs'
+
+rootfs_src:
+	if [ ! -d ${PWD}/${ROOTFS_SRC} ]; then \
+		sudo apt update && \
+		sudo apt install -y \
+			debootstrap; \
+		\
+		sudo debootstrap \
+			--components=main,contrib,non-free,non-free-firmware \
+			stable \
+			${PWD}/${ROOTFS_SRC} \
+			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
+		\
+		sudo chroot \
+			${PWD}/${ROOTFS_SRC} \
+			/bin/bash \
+				-c "apt update && apt install -y bash-completion gdbserver make openssh-server"; \
+		\
+		#设置网卡 \
+		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "iface enp0s3 inet manual" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "up ip link set dev enp0s3 up" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "post-up dhclient -i enp0s3" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "pre-down dhclient -r enp0s3" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "down ip link set dev enp0s3 down" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		\
+		#设置ssh服务器 \
+		sudo sed -i "s|^#PermitEmptyPasswords no|PermitEmptyPasswords yes|" ${PWD}/${ROOTFS_SRC}/etc/ssh/sshd_config; \
+		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_SRC}/etc/ssh/sshd_config; \
+		\
+		#设置mqemu文件夹 \
+		echo "${SHARE_TAG} /root 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/fstab; \
+		\
+		#设置主机名称 \
+		echo "src" | sudo tee ${PWD}/${ROOTFS_SRC}/etc/hostname; \
+		\
+		#设置密码 \
+		sudo chroot ${PWD}/${ROOTFS_SRC} /bin/bash -c "passwd -d root"; \
+	fi
+
+	cd ${PWD}/${ROOTFS_SRC} && \
+	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_SRC}.cpio >/dev/null
+
+	@echo -e '\033[0;32m[*]\033[0mbuild the src rootfs'
+
+rootfs_dst:
+	if [ ! -d ${PWD}/${ROOTFS_DST} ]; then \
+		sudo apt update && \
+		sudo apt install -y \
+			debootstrap; \
+		\
+		sudo debootstrap \
+			--components=main,contrib,non-free,non-free-firmware \
+			stable \
+			${PWD}/${ROOTFS_DST} \
+			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
+		\
+		sudo chroot \
+			${PWD}/${ROOTFS_DST} \
+			/bin/bash \
+				-c "apt update && apt install -y bash-completion gdbserver make openssh-server"; \
+		\
+		#设置网卡 \
+		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "iface enp0s3 inet manual" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "up ip link set dev enp0s3 up" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "post-up dhclient -i enp0s3" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "pre-down dhclient -r enp0s3" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "down ip link set dev enp0s3 down" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		\
+		#设置ssh服务器 \
+		sudo sed -i "s|^#PermitEmptyPasswords no|PermitEmptyPasswords yes|" ${PWD}/${ROOTFS_DST}/etc/ssh/sshd_config; \
+		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_DST}/etc/ssh/sshd_config; \
+		\
+		#设置mqemu文件夹 \
+		echo "${SHARE_TAG} /root 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/fstab; \
+		\
+		#设置主机名称 \
+		echo "dst" | sudo tee ${PWD}/${ROOTFS_DST}/etc/hostname; \
+		\
+		#设置密码 \
+		sudo chroot ${PWD}/${ROOTFS_DST} /bin/bash -c "passwd -d root"; \
+	fi
+
+	cd ${PWD}/${ROOTFS_DST} && \
+	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_DST}.cpio >/dev/null
+
+	@echo -e '\033[0;32m[*]\033[0mbuild the dst rootfs'
+
+init_migrate:
+	${PWD}/libvirt/build/tools/virsh undefine src || exit 0
+	cp ${PWD}/migrate.example.xml ${PWD}/src.xml
+	sed -i "s|{NAME}|src|" ${PWD}/src.xml
+	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/src.xml
+	sed -i "s|{INITRD}|${PWD}/${ROOTFS_SRC}.cpio|" ${PWD}/src.xml
+	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/src.xml
+	sed -i "s|{TAP}|${TAP_SRC}|" ${PWD}/src.xml
+	sed -i "s|{MACADDRESS}|${SRC_MAC}|" ${PWD}/src.xml
+	sed -i "s|{SHARE_HOST}|${PWD}|" ${PWD}/src.xml
+	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/src.xml
+	sed -i "s|{CONSOLE_PORT}|${CONSOLE_SRC_PORT}|" ${PWD}/src.xml
+	sed -i "s|{GDB_PORT}|${GDB_KERNEL_SRC_PORT}|" ${PWD}/src.xml
+	${PWD}/libvirt/build/tools/virsh define ${PWD}/src.xml || exit 0
+	${PWD}/libvirt/build/tools/virsh start src || exit 0
+
+	${PWD}/libvirt/build/tools/virsh undefine dst || exit 0
+	cp ${PWD}/migrate.example.xml ${PWD}/dst.xml
+	sed -i "s|{NAME}|dst|" ${PWD}/dst.xml
+	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/dst.xml
+	sed -i "s|{INITRD}|${PWD}/${ROOTFS_DST}.cpio|" ${PWD}/dst.xml
+	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/dst.xml
+	sed -i "s|{TAP}|${TAP_DST}|" ${PWD}/dst.xml
+	sed -i "s|{MACADDRESS}|${DST_MAC}|" ${PWD}/dst.xml
+	sed -i "s|{SHARE_HOST}|${PWD}|" ${PWD}/dst.xml
+	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/dst.xml
+	sed -i "s|{CONSOLE_PORT}|${CONSOLE_DST_PORT}|" ${PWD}/dst.xml
+	sed -i "s|{GDB_PORT}|${GDB_KERNEL_DST_PORT}|" ${PWD}/dst.xml
+	${PWD}/libvirt/build/tools/virsh define ${PWD}/dst.xml || exit 0
+	${PWD}/libvirt/build/tools/virsh start dst || exit 0
+
+console_src:
+	gnome-terminal \
+		--title "console for src" \
+		-- \
+		telnet localhost ${CONSOLE_SRC_PORT}
+
+console_dst:
+	gnome-terminal \
+		--title "console for dst" \
+		-- \
+		telnet localhost ${CONSOLE_DST_PORT}
+
+fini_migrate:
+	${PWD}/libvirt/build/tools/virsh destroy src || exit 0
+	${PWD}/libvirt/build/tools/virsh undefine src || exit 0
+
+	${PWD}/libvirt/build/tools/virsh destroy dst || exit 0
+	${PWD}/libvirt/build/tools/virsh undefine dst || exit 0
 
 submodules:
 	git submodule \

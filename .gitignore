@@ -11,16 +11,15 @@ dropbear-2024.85.tar.bz2
 dropbear-2024.85
 
 # 忽略rootfs产物
-rootfs_l1
-rootfs_l1.cpio
-rootfs_l2
-rootfs_l2.cpio
+rootfs*
 
 # 忽略dhcp运行产物
 dnsmasq.pid
 
-# 忽略l1的libvirt xml
+# 忽略libvirt xml
 l1.xml
+src.xml
+dst.xml
 
 # 忽略gdb产物
 .gdb_history
