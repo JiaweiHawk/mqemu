@@ -6,7 +6,6 @@ NET_MASK				:= 24
 TAP_L0					:= tap0
 L1_MAC					:= aa:bb:cc:cc:bb:aa
 L1_IP					:= ${NET_PREFIX}.128
-L1_LIBVIRT_NAME 		:= l1
 BRIDGE_L1				:= br1
 TAP_L1					:= tap1
 L2_MAC					:= cc:bb:aa:aa:bb:cc
@@ -150,10 +149,10 @@ debug_l1:
 			${PWD}/kernel/vmlinux
 
 init_l1:
-	${PWD}/libvirt/build/tools/virsh undefine ${L1_LIBVIRT_NAME} || exit 0
+	${PWD}/libvirt/build/tools/virsh undefine l1 || exit 0
 
 	cp ${PWD}/l1.example.xml ${PWD}/l1.xml
-	sed -i "s|{NAME}|${L1_LIBVIRT_NAME}|" ${PWD}/l1.xml
+	sed -i "s|{NAME}|l1|" ${PWD}/l1.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/l1.xml
 	sed -i "s|{INITRD}|${PWD}/${ROOTFS_L1}.cpio|" ${PWD}/l1.xml
 	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/l1.xml
@@ -164,10 +163,10 @@ init_l1:
 	sed -i "s|{GDB_PORT}|${GDB_KERNEL_L1_PORT}|" ${PWD}/l1.xml
 	${PWD}/libvirt/build/tools/virsh define ${PWD}/l1.xml
 
-	${PWD}/libvirt/build/tools/virsh start ${L1_LIBVIRT_NAME}
+	${PWD}/libvirt/build/tools/virsh start l1
 
 fini_l1:
-	${PWD}/libvirt/build/tools/virsh destroy ${L1_LIBVIRT_NAME}
+	${PWD}/libvirt/build/tools/virsh destroy l1
 
 run_l2:
 	${PWD}/qemu/build/qemu-system-x86_64 \
@@ -199,7 +198,7 @@ gdb_qemu_l1:
 		gdb \
 			-ex "handle SIGUSR1 noprint" -ex "set confirm on" \
 			--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
-			--pid=$$(cat $$XDG_RUNTIME_DIR/libvirt/qemu/run/${L1_LIBVIRT_NAME}.pid)
+			--pid=$$(cat $$XDG_RUNTIME_DIR/libvirt/qemu/run/l1.pid)
 
 console_l1:
 	gnome-terminal \
