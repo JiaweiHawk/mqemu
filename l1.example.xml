@@ -41,7 +41,6 @@
     <qemu:commandline>
         <qemu:arg value="-gdb"/>
         <qemu:arg value="tcp::{GDB_PORT}"/>
-        <qemu:arg value="-S"/>
     </qemu:commandline>
 
 </domain>
