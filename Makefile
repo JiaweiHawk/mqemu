@@ -53,13 +53,13 @@ endef #define QEMU_OPTIONS_L2
 
 init_env:
 	#开启ip转发
-	sudo sysctl -w net.ipv4.ip_forward=1
+	sudo sysctl -w net.ipv4.ip_forward=1 || exit 0
 
 	#创建tap
-	sudo ip tuntap add name ${TAP_L0} mode tap
+	sudo ip tuntap add name ${TAP_L0} mode tap || exit 0
 
 	#添加子网
-	sudo ip addr add ${NET_PREFIX}.1/${NET_MASK} dev ${TAP_L0}
+	sudo ip addr add ${NET_PREFIX}.1/${NET_MASK} dev ${TAP_L0} || exit 0
 
 	#启动dhcp服务
 	sudo dnsmasq \
@@ -68,63 +68,63 @@ init_env:
 		--dhcp-range=${NET_PREFIX}.2,${NET_PREFIX}.254 \
 		--dhcp-host=${L1_MAC},${L1_IP} \
 		--dhcp-host=${L2_MAC},${L2_IP} \
-		-x ${PWD}/dnsmasq.pid
+		-x ${PWD}/dnsmasq.pid || exit 0
 
 	#启动tap
-	sudo ip link set dev ${TAP_L0} up
+	sudo ip link set dev ${TAP_L0} up || exit 0
 
 	#添加NAT规则
 	sudo iptables -t nat -A POSTROUTING \
 		-s ${NET_PREFIX}.0/${NET_MASK} \
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j MASQUERADE
+		-j MASQUERADE || exit 0
 
 	#添加FORWARD规则
 	sudo iptables -I FORWARD \
 		-i ${TAP_L0} \
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j ACCEPT
+		-j ACCEPT || exit 0
 	sudo iptables -I FORWARD \
 		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-o ${TAP_L0} \
-		-j ACCEPT
+		-j ACCEPT || exit 0
 
 	#启动libvirtd
-	${PWD}/libvirt/build/src/libvirtd -d
+	${PWD}/libvirt/build/src/libvirtd -d || exit 0
 
 	@echo -e '\033[0;32m[*]\033[0minit the environment'
 
 fini_env:
 	#结束libvirtd
-	kill -s TERM $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
+	kill -s TERM $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid) || exit 0
 
 	#删除FORWARD规则
 	sudo iptables -D FORWARD \
 		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-o ${TAP_L0} \
-		-j ACCEPT
+		-j ACCEPT || exit 0
 	sudo iptables -D FORWARD \
 		-i ${TAP_L0} \
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j ACCEPT
+		-j ACCEPT || exit 0
 
 	#删除NAT规则
 	sudo iptables -t nat -D POSTROUTING \
 		-s ${NET_PREFIX}.0/${NET_MASK} \
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j MASQUERADE
+		-j MASQUERADE || exit 0
 
 	#关闭tap
-	sudo ip link set dev ${TAP_L0} down
+	sudo ip link set dev ${TAP_L0} down || exit 0
 
 	#关闭dhcp服务
-	sudo kill -TERM $$(cat ${PWD}/dnsmasq.pid)
+	sudo kill -TERM $$(cat ${PWD}/dnsmasq.pid) || exit 0
 
 	#删除tap
-	sudo ip tuntap del ${TAP_L0} mode tap
+	sudo ip tuntap del ${TAP_L0} mode tap || exit 0
 
 	#关闭ip转发
-	sudo sysctl -w net.ipv4.ip_forward=0
+	sudo sysctl -w net.ipv4.ip_forward=0 || exit 0
 
 	@echo -e '\033[0;32m[*]\033[0mfini the environment'
 
@@ -164,12 +164,12 @@ init_l1:
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/l1.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_L1_PORT}|" ${PWD}/l1.xml
 	sed -i "s|{GDB_PORT}|${GDB_KERNEL_L1_PORT}|" ${PWD}/l1.xml
-	${PWD}/libvirt/build/tools/virsh define ${PWD}/l1.xml
+	${PWD}/libvirt/build/tools/virsh define ${PWD}/l1.xml || exit 0
 
-	${PWD}/libvirt/build/tools/virsh start l1
+	${PWD}/libvirt/build/tools/virsh start l1 || exit 0
 
 fini_l1:
-	${PWD}/libvirt/build/tools/virsh destroy l1
+	${PWD}/libvirt/build/tools/virsh destroy l1 || exit 0
 
 run_l2:
 	${PWD}/qemu/build/qemu-system-x86_64 \
