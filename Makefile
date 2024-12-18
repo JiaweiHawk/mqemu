@@ -140,6 +140,15 @@ debug_l1:
 				-serial telnet::${CONSOLE_L1_PORT},server,nowait \
 				-gdb tcp::${GDB_KERNEL_L1_PORT} -S
 
+	gnome-terminal \
+		--title "gdb for l1 kernel" \
+		-- \
+		gdb \
+			-ex "set confirm on" \
+			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
+			--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
+			${PWD}/kernel/vmlinux
+
 init_l1:
 	${PWD}/libvirt/build/tools/virsh undefine ${L1_LIBVIRT_NAME} || exit 0
 
