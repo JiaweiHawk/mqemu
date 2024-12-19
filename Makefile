@@ -5,6 +5,7 @@ NET_MASK				:= 24
 BUSYBOX 				:= busybox-1.37.0
 DROPBEAR				:= dropbear-2024.85
 SHARE_TAG 				:= share9p
+USER 					:= $(shell whoami)
 
 ROOTFS_L1 				:= rootfs_l1
 TAP_L0					:= tap0
@@ -56,19 +57,25 @@ SRC_MAC					:= aa:aa:cc:cc:aa:aa
 SRC_IP					:= ${NET_MIGRATE_PREFIX}.130
 CONSOLE_SRC_PORT		:= 1236
 GDB_KERNEL_SRC_PORT		:= 1237
+GDB_QEMU_SRC_SYNC_PORT  := 1234
 
 ROOTFS_DST				:= rootfs_dst
 TAP_DST					:= tap_dst
 DST_MAC					:= cc:aa:aa:aa:aa:cc
 DST_IP					:= ${NET_MIGRATE_PREFIX}.131
 CONSOLE_DST_PORT		:= 1238
-GDB_KERNEL_DST_PORT		:= 1239
+GDB_KERNEL_DST_PORT		:= 1249
+GDB_QEMU_DST_SYNC_PORT  := 1234
 
-.PHONY: build kernel libvirt qemu rootfs_dst rootfs_l1 rootfs_l2 rootfs_src submodules \
+ROOTFS_MIGRATE_GUEST	:= rootfs_migrate_guest
+CONSOLE_MIGRATE_GUEST_PORT:= 1235
+
+.PHONY: build kernel libvirt qemu rootfs_dst rootfs_l1 rootfs_l2 rootfs_migrate_guest rootfs_src submodules \
 		fini_env gdb_libvirtd init_env \
 		console_l1 debug_l1 fini_l1 gdb_kernel_l1 gdb_qemu_l1 init_l1 ssh_l1 \
 		run_l2 ssh_l2 \
-		console_src console_dst fini_migrate init_migrate
+		console_src console_dst fini_migrate init_migrate ssh_src ssh_dst \
+		console_src_guest console_dst_guest migrate
 
 init_env:
 	#开启ip转发
@@ -208,7 +215,8 @@ debug_l1:
 		--title "gdb for l1 qemu" \
 		-- \
 		gdb \
-			-ex "handle SIGUSR1 noprint" -ex "set confirm on" \
+			-iex "set confirm on" \
+			-ex "handle SIGUSR1 noprint" \
 			--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
 			--args \
 				${PWD}/qemu/build/qemu-system-x86_64 \
@@ -221,7 +229,7 @@ debug_l1:
 		--title "gdb for l1 kernel" \
 		-- \
 		gdb \
-			-ex "set confirm on" \
+			-iex "set confirm on" \
 			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
 			--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
 			${PWD}/kernel/vmlinux
@@ -255,7 +263,7 @@ gdb_kernel_l1:
 		--title "gdb for l1 kernel" \
 		-- \
 		gdb \
-			-ex "set confirm on" \
+			-iex "set confirm on" \
 			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
 			--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
 			${PWD}/kernel/vmlinux
@@ -265,7 +273,7 @@ gdb_libvirtd:
 		--title "gdb for libvirtd" \
 		-- \
 		gdb \
-			-ex "set confirm on" \
+			-iex "set confirm on" \
 			-ex "set follow-fork-mode parent" \
 			-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
 
@@ -274,7 +282,8 @@ gdb_qemu_l1:
 		--title "gdb for l1 qemu" \
 		-- \
 		gdb \
-			-ex "handle SIGUSR1 noprint" -ex "set confirm on" \
+			-iex "set confirm on" \
+			-ex "handle SIGUSR1 noprint" \
 			--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
 			--pid=$$(cat $$XDG_RUNTIME_DIR/libvirt/qemu/run/l1.pid)
 
@@ -296,7 +305,7 @@ ssh_l2:
 		-- \
 		ssh -o "StrictHostKeyChecking no" root@${L2_IP}
 
-build: kernel libvirt qemu rootfs_dst rootfs_l1 rootfs_l2 rootfs_src
+build: kernel libvirt qemu rootfs_dst rootfs_l1 rootfs_l2 rootfs_migrate_guest rootfs_src
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
 
 kernel:
@@ -525,7 +534,7 @@ rootfs_src:
 		sudo chroot \
 			${PWD}/${ROOTFS_SRC} \
 			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdbserver make openssh-server"; \
+				-c "apt update && apt install -y bash-completion gdb libfdt-dev libglib2.0-dev libpixman-1-dev make netcat-openbsd openssh-server"; \
 		\
 		#设置网卡 \
 		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
@@ -540,13 +549,27 @@ rootfs_src:
 		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_SRC}/etc/ssh/sshd_config; \
 		\
 		#设置mqemu文件夹 \
-		echo "${SHARE_TAG} /root 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/fstab; \
+		sudo chroot ${PWD}/${ROOTFS_SRC} /bin/bash -c "useradd -m -G kvm -s /bin/bash ${USER} && passwd -d ${USER}"; \
+		sudo chroot ${PWD}/${ROOTFS_SRC} su ${USER} -c "mkdir -p ${PWD}"; \
+		echo "${SHARE_TAG} ${PWD} 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/fstab; \
 		\
 		#设置主机名称 \
 		echo "src" | sudo tee ${PWD}/${ROOTFS_SRC}/etc/hostname; \
 		\
-		#设置密码 \
+		#设置root密码 \
 		sudo chroot ${PWD}/${ROOTFS_SRC} /bin/bash -c "passwd -d root"; \
+		\
+		#设置libvirtd \
+		sudo sed -i "4i export PATH=${PWD}/libvirt/build/src:\$$PATH" ${PWD}/${ROOTFS_SRC}/home/${USER}/.bashrc; \
+		echo "[Unit]" | sudo tee ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "Description=libvirt daemon" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "[Service]" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "User=${USER}" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "PAMName=login" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "ExecStart=${PWD}/libvirt/build/src/libvirtd" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "[Install]" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "WantedBy=multi-user.target" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
+		sudo chroot ${PWD}/${ROOTFS_SRC} /bin/bash -c "systemctl enable libvirtd"; \
 	fi
 
 	cd ${PWD}/${ROOTFS_SRC} && \
@@ -569,7 +592,7 @@ rootfs_dst:
 		sudo chroot \
 			${PWD}/${ROOTFS_DST} \
 			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdbserver make openssh-server"; \
+				-c "apt update && apt install -y bash-completion gdb libfdt-dev libglib2.0-dev libpixman-1-dev make netcat-openbsd openssh-server"; \
 		\
 		#设置网卡 \
 		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
@@ -584,13 +607,27 @@ rootfs_dst:
 		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_DST}/etc/ssh/sshd_config; \
 		\
 		#设置mqemu文件夹 \
-		echo "${SHARE_TAG} /root 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/fstab; \
+		sudo chroot ${PWD}/${ROOTFS_DST} /bin/bash -c "useradd -m -G kvm -s /bin/bash ${USER} && passwd -d ${USER}"; \
+		sudo chroot ${PWD}/${ROOTFS_DST} su ${USER} -c "mkdir -p ${PWD}"; \
+		echo "${SHARE_TAG} ${PWD} 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/fstab; \
 		\
 		#设置主机名称 \
 		echo "dst" | sudo tee ${PWD}/${ROOTFS_DST}/etc/hostname; \
 		\
-		#设置密码 \
+		#设置root密码 \
 		sudo chroot ${PWD}/${ROOTFS_DST} /bin/bash -c "passwd -d root"; \
+		\
+		#设置libvirtd \
+		sudo sed -i "4i export PATH=${PWD}/libvirt/build/src:\$$PATH" ${PWD}/${ROOTFS_DST}/home/${USER}/.bashrc; \
+		echo "[Unit]" | sudo tee ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
+		echo "Description=libvirt daemon" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
+		echo "[Service]" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
+		echo "User=${USER}" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
+		echo "PAMName=login" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
+		echo "ExecStart=${PWD}/libvirt/build/src/libvirtd" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
+		echo "[Install]" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
+		echo "WantedBy=multi-user.target" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
+		sudo chroot ${PWD}/${ROOTFS_DST} /bin/bash -c "systemctl enable libvirtd"; \
 	fi
 
 	cd ${PWD}/${ROOTFS_DST} && \
@@ -635,11 +672,23 @@ console_src:
 		-- \
 		telnet localhost ${CONSOLE_SRC_PORT}
 
+ssh_src:
+	gnome-terminal \
+		--title "ssh for src" \
+		-- \
+		ssh -o "StrictHostKeyChecking no" root@${SRC_IP}
+
 console_dst:
 	gnome-terminal \
 		--title "console for dst" \
 		-- \
 		telnet localhost ${CONSOLE_DST_PORT}
+
+ssh_dst:
+	gnome-terminal \
+		--title "ssh for dst" \
+		-- \
+		ssh -o "StrictHostKeyChecking no" root@${DST_IP}
 
 fini_migrate:
 	${PWD}/libvirt/build/tools/virsh destroy src || exit 0
@@ -647,6 +696,159 @@ fini_migrate:
 
 	${PWD}/libvirt/build/tools/virsh destroy dst || exit 0
 	${PWD}/libvirt/build/tools/virsh undefine dst || exit 0
+
+rootfs_migrate_guest:
+	if [ ! -d ${PWD}/${BUSYBOX} ]; then \
+		wget https://busybox.net/downloads/${BUSYBOX}.tar.bz2; \
+		tar -jxvf ${PWD}/${BUSYBOX}.tar.bz2; \
+		make -C ${PWD}/${BUSYBOX} defconfig; \
+		sed -i 's|^# \(CONFIG_STATIC\).*$$|\1=y|' ${PWD}/${BUSYBOX}/.config; \
+		make -C ${PWD}/${BUSYBOX} -j ${NPROC}; \
+	fi
+
+	if [ ! -d ${PWD}/${ROOTFS_MIGRATE_GUEST} ]; then \
+		mkdir -p ${PWD}/${ROOTFS_MIGRATE_GUEST}/dev/pts \
+			${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d \
+			${PWD}/${ROOTFS_MIGRATE_GUEST}/home/root \
+			${PWD}/${ROOTFS_MIGRATE_GUEST}/proc \
+			${PWD}/${ROOTFS_MIGRATE_GUEST}/sys \
+		\
+		touch ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/passwd \
+			${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/group; \
+		\
+		make -C ${PWD}/${BUSYBOX} CONFIG_PREFIX=${PWD}/${ROOTFS_MIGRATE_GUEST} install; \
+		make -C ${PWD}/${DROPBEAR} install DESTDIR=${PWD}/${ROOTFS_MIGRATE_GUEST}; \
+		\
+		#设置inittab文件 \
+		echo "::sysinit:/etc/init.d/rcS" | sudo tee ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/inittab; \
+		echo "ttyS0::respawn:/bin/sh" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/inittab; \
+		\
+		#设置初始化脚本 \
+		echo "#!/bin/sh" | sudo tee ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
+		echo "mount -a" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
+		echo "/sbin/mdev -s" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
+		echo "/usr/sbin/addgroup -S -g 0 root" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
+		echo "/usr/sbin/adduser -S -u 0 -G root -s /bin/sh -D root" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
+		echo "/usr/bin/passwd -d root" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
+		sudo chmod +x ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
+		\
+		#设置挂载文件信息 \
+		echo "devpts /dev/pts devpts defaults 0 0" | sudo tee ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/fstab; \
+		echo "proc /proc proc defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/fstab; \
+		echo "sysfs /sys sysfs defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/fstab; \
+	fi
+
+	cd ${PWD}/${ROOTFS_MIGRATE_GUEST} && \
+	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_MIGRATE_GUEST}.cpio >/dev/null
+	sudo chown $$USER:$$USER ${PWD}/${ROOTFS_MIGRATE_GUEST}.cpio
+
+	@echo -e '\033[0;32m[*]\033[0mbuild the migrate guest rootfs'
+
+console_src_guest:
+	gnome-terminal \
+		--title "console for src guest" \
+		-- \
+		telnet ${SRC_IP} ${CONSOLE_MIGRATE_GUEST_PORT}
+
+console_dst_guest:
+	gnome-terminal \
+		--title "console for dst guest" \
+		-- \
+		telnet ${DST_IP} ${CONSOLE_MIGRATE_GUEST_PORT}
+
+migrate:
+	#设置guest的xml
+	cp ${PWD}/migrate_guest.example.xml ${PWD}/migrate_guest.xml
+	sed -i "s|{NAME}|migrate_guest|" ${PWD}/migrate_guest.xml
+	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/migrate_guest.xml
+	sed -i "s|{INITRD}|${PWD}/${ROOTFS_MIGRATE_GUEST}.cpio|" ${PWD}/migrate_guest.xml
+	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/migrate_guest.xml
+	sed -i "s|{CONSOLE_PORT}|${CONSOLE_MIGRATE_GUEST_PORT}|" ${PWD}/migrate_guest.xml
+
+	#启动src上libvirtd的gdb
+	gnome-terminal \
+		--title "gdb for src libvirtd" \
+		-- \
+		ssh \
+			-o "StrictHostKeyChecking no" \
+			-t \
+			${USER}@${SRC_IP} \
+			'echo "break virCommandHandshakeNotify" > wait_to_gdb_qemu && \
+			echo "  command" >> wait_to_gdb_qemu && \
+			echo "    silent" >> wait_to_gdb_qemu && \
+			echo "    shell echo | nc -W 1 ${SRC_IP} ${GDB_QEMU_SRC_SYNC_PORT}" >> wait_to_gdb_qemu && \
+			echo "    continue" >> wait_to_gdb_qemu && \
+			echo "  end" >> wait_to_gdb_qemu && \
+			gdb \
+				-iex "set confirm on" \
+				-iex "set pagination off" \
+				-ex "set follow-fork-mode parent" \
+				-x wait_to_gdb_qemu \
+				-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)'
+
+	#启动src上qemu的gdb
+	gnome-terminal \
+		--title "gdb for src qemu" \
+		-- \
+		ssh \
+			-o "StrictHostKeyChecking no" \
+			-t \
+			${USER}@${SRC_IP} \
+			'nc -W 1 -l ${GDB_QEMU_SRC_SYNC_PORT} && \
+			gdb \
+				-iex "set confirm on" \
+				-iex "set pagination off" \
+				-ex "handle SIGUSR1 noprint" \
+				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
+				-p $$(cat $$XDG_RUNTIME_DIR/libvirt/qemu/run/migrate_guest.pid)'
+
+	#启动dst上libvirtd的gdb
+	gnome-terminal \
+		--title "gdb for dst libvirtd" \
+		-- \
+		ssh \
+			-o "StrictHostKeyChecking no" \
+			-t \
+			${USER}@${DST_IP} \
+			'echo "break virCommandHandshakeNotify" > wait_to_gdb_qemu && \
+			echo "  command" >> wait_to_gdb_qemu && \
+			echo "    silent" >> wait_to_gdb_qemu && \
+			echo "    shell echo | nc -W 1 ${DST_IP} ${GDB_QEMU_DST_SYNC_PORT}" >> wait_to_gdb_qemu && \
+			echo "    continue" >> wait_to_gdb_qemu && \
+			echo "  end" >> wait_to_gdb_qemu && \
+			gdb \
+				-iex "set confirm on" \
+				-iex "set pagination off" \
+				-ex "set follow-fork-mode parent" \
+				-x wait_to_gdb_qemu \
+				-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)'
+
+	#启动dst上qemu的gdb
+	gnome-terminal \
+		--title "gdb for dst qemu" \
+		-- \
+		ssh \
+			-o "StrictHostKeyChecking no" \
+			-t \
+			${USER}@${DST_IP} \
+			'nc -W 1 -l ${GDB_QEMU_DST_SYNC_PORT} && \
+			gdb \
+				-iex "set confirm on" \
+				-iex "set pagination off" \
+				-ex "handle SIGUSR1 noprint" \
+				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
+				-p $$(cat $$XDG_RUNTIME_DIR/libvirt/qemu/run/migrate_guest.pid)'
+
+	#启动src的guest
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${SRC_IP}/session?no_verify=1 destroy migrate_guest || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${SRC_IP}/session?no_verify=1 undefine migrate_guest || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${SRC_IP}/session?no_verify=1 define ${PWD}/migrate_guest.xml || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${SRC_IP}/session?no_verify=1 start migrate_guest || exit 0
+
+	#热迁移
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${DST_IP}/session?no_verify=1 destroy migrate_guest || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${DST_IP}/session?no_verify=1 undefine migrate_guest || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${SRC_IP}/session?no_verify=1 migrate --live migrate_guest qemu+ssh://${USER}@${DST_IP}/session?no_verify=1 || exit 0
 
 submodules:
 	git submodule \

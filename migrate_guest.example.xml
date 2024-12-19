@@ -1,0 +1,26 @@
+<!--参考https://libvirt.org/formatdomain.html-->
+<domain type="kvm" xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+    <name>{NAME}</name>
+    <memory unit="MiB">512</memory>
+    <vcpu>1</vcpu>
+
+    <cpu mode="host-passthrough">
+    </cpu>
+
+    <os>
+        <type arch="x86_64">hvm</type>
+        <kernel>{KERNEL}</kernel>
+        <initrd>{INITRD}</initrd>
+        <cmdline>rdinit=/sbin/init panic=-1 console=ttyS0 nokaslr</cmdline>
+    </os>
+
+    <devices>
+        <emulator>{QEMU}</emulator>
+
+        <serial type="tcp">
+            <source mode="bind" host="0.0.0.0" service="{CONSOLE_PORT}"/>
+            <protocol type="telnet"/>
+        </serial>
+    </devices>
+
+</domain>

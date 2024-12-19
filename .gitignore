@@ -20,6 +20,7 @@ dnsmasq.pid
 l1.xml
 src.xml
 dst.xml
+migrate_guest.xml
 
 # 忽略gdb产物
 .gdb_history
