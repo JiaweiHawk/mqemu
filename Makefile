@@ -6,6 +6,7 @@ BUSYBOX 				:= busybox-1.37.0
 DROPBEAR				:= dropbear-2024.85
 SHARE_TAG 				:= share9p
 USER 					:= $(shell whoami)
+SSH_CONNECTION_ATTEMPTS := 5
 
 ROOTFS_L1 				:= rootfs_l1
 TAP_L0					:= tap0
@@ -297,13 +298,19 @@ ssh_l1:
 	gnome-terminal \
 		--title "ssh for l1" \
 		-- \
-		ssh -o "StrictHostKeyChecking no" root@${L1_IP}
+		ssh \
+			-o "StrictHostKeyChecking=no" \
+			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
+			root@${L1_IP}
 
 ssh_l2:
 	gnome-terminal \
 		--title "ssh for l2" \
 		-- \
-		ssh -o "StrictHostKeyChecking no" root@${L2_IP}
+		ssh \
+			-o "StrictHostKeyChecking=no" \
+			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
+			root@${L2_IP}
 
 build: kernel libvirt qemu rootfs_dst rootfs_l1 rootfs_l2 rootfs_migrate_guest rootfs_src
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
@@ -676,7 +683,10 @@ ssh_src:
 	gnome-terminal \
 		--title "ssh for src" \
 		-- \
-		ssh -o "StrictHostKeyChecking no" root@${SRC_IP}
+		ssh \
+			-o "StrictHostKeyChecking=no" \
+			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
+			root@${SRC_IP}
 
 console_dst:
 	gnome-terminal \
@@ -688,7 +698,10 @@ ssh_dst:
 	gnome-terminal \
 		--title "ssh for dst" \
 		-- \
-		ssh -o "StrictHostKeyChecking no" root@${DST_IP}
+		ssh \
+			-o "StrictHostKeyChecking=no" \
+			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
+			root@${DST_IP}
 
 fini_migrate:
 	${PWD}/libvirt/build/tools/virsh destroy src || exit 0
@@ -771,6 +784,7 @@ migrate:
 		-- \
 		ssh \
 			-o "StrictHostKeyChecking no" \
+			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
 			${USER}@${SRC_IP} \
 			'echo "break virCommandHandshakeNotify" > wait_to_gdb_qemu && \
@@ -792,6 +806,7 @@ migrate:
 		-- \
 		ssh \
 			-o "StrictHostKeyChecking no" \
+			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
 			${USER}@${SRC_IP} \
 			'nc -W 1 -l ${GDB_QEMU_SRC_SYNC_PORT} && \
@@ -808,6 +823,7 @@ migrate:
 		-- \
 		ssh \
 			-o "StrictHostKeyChecking no" \
+			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
 			${USER}@${DST_IP} \
 			'echo "break virCommandHandshakeNotify" > wait_to_gdb_qemu && \
@@ -829,6 +845,7 @@ migrate:
 		-- \
 		ssh \
 			-o "StrictHostKeyChecking no" \
+			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
 			${USER}@${DST_IP} \
 			'nc -W 1 -l ${GDB_QEMU_DST_SYNC_PORT} && \
