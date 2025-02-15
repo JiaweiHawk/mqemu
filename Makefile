@@ -351,7 +351,7 @@ libvirt:
 	if [ ! -d ${PWD}/libvirt/build ]; then \
 		sudo apt update && \
 		sudo apt install -y \
-			docutils gnutls-dev libjson-c-dev libxml2-dev libxml2-utils meson xsltproc; \
+			docutils gnutls-dev libglib2.0-dev libjson-c-dev libxml2-dev libxml2-utils meson xsltproc; \
 		\
 		meson setup ${PWD}/libvirt/build ${PWD}/libvirt; \
 		meson configure ${PWD}/libvirt/build -Ddriver_qemu=enabled; \
