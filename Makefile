@@ -316,27 +316,29 @@ build: kernel libvirt qemu rootfs_dst rootfs_l1 rootfs_l2 rootfs_migrate_guest r
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
 
 kernel:
-	sudo apt update && \
-	sudo apt install -y \
-		bc bear bison dwarves flex libelf-dev libssl-dev
-
-	make \
-		-C ${PWD}/kernel \
-		defconfig
-
-	${PWD}/kernel/scripts/config \
-		--file ${PWD}/kernel/.config \
-		-e CONFIG_DEBUG_INFO_DWARF5 \
-		-e CONFIG_GDB_SCRIPTS \
-		-e CONFIG_X86_X2APIC \
-		-e CONFIG_KVM \
-		-e CONFIG_$(shell lsmod | grep "^kvm_" | awk '{print $$1}') \
-		-e CONFIG_TUN \
-		-e CONFIG_BRIDGE
-
-	yes "" | make \
-		-C ${PWD}/kernel \
-		oldconfig
+	if [ ! -f "${PWD}/kernel/vmlinux" ]; then \
+		sudo apt update && \
+		sudo apt install -y \
+			bc bear bison dwarves flex libelf-dev libssl-dev; \
+		\
+		make \
+			-C ${PWD}/kernel \
+			defconfig; \
+		\
+		${PWD}/kernel/scripts/config \
+			--file ${PWD}/kernel/.config \
+			-e CONFIG_DEBUG_INFO_DWARF5 \
+			-e CONFIG_GDB_SCRIPTS \
+			-e CONFIG_X86_X2APIC \
+			-e CONFIG_KVM \
+			-e CONFIG_$(shell lsmod | grep "^kvm_" | awk '{print $$1}') \
+			-e CONFIG_TUN \
+			-e CONFIG_BRIDGE; \
+		\
+		yes "" | make \
+			-C ${PWD}/kernel \
+			oldconfig; \
+	fi
 
 	bear \
 		--append \
@@ -366,16 +368,18 @@ libvirt:
 	@echo -e '\033[0;32m[*]\033[0mbuild the libvirt'
 
 qemu:
-	sudo apt update && \
-	sudo apt install -y \
-		bear libfdt-dev libglib2.0-dev libpixman-1-dev ninja-build python3-pip zlib1g-dev
-
-	cd ${PWD}/qemu && \
-	./configure \
-		--target-list=x86_64-softmmu \
-		--enable-debug \
-		--enable-kvm \
-		--enable-virtfs
+	if [ ! -d "${PWD}/qemu/build" ]; then \
+		sudo apt update && \
+		sudo apt install -y \
+			bear libfdt-dev libglib2.0-dev libpixman-1-dev ninja-build python3-pip zlib1g-dev; \
+		\
+		cd ${PWD}/qemu && \
+		./configure \
+			--target-list=x86_64-softmmu \
+			--enable-debug \
+			--enable-kvm \
+			--enable-virtfs; \
+	fi
 
 	bear \
 		--append \
