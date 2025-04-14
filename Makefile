@@ -317,9 +317,9 @@ build: kernel libvirt qemu rootfs_dst rootfs_l1 rootfs_l2 rootfs_migrate_guest r
 
 kernel:
 	if [ ! -f "${PWD}/kernel/vmlinux" ]; then \
+		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
-		sudo apt install -y \
-			bc bear bison dwarves flex libelf-dev libssl-dev; \
+		sudo apt build-dep -y linux \
 		\
 		make \
 			-C ${PWD}/kernel \
@@ -351,9 +351,9 @@ kernel:
 
 libvirt:
 	if [ ! -d ${PWD}/libvirt/build ]; then \
+		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
-		sudo apt install -y \
-			docutils gnutls-dev libglib2.0-dev libjson-c-dev libxml2-dev libxml2-utils meson xsltproc; \
+		sudo apt build-dep -y libvirt \
 		\
 		meson setup ${PWD}/libvirt/build ${PWD}/libvirt; \
 		meson configure ${PWD}/libvirt/build -Ddriver_qemu=enabled; \
@@ -369,9 +369,9 @@ libvirt:
 
 qemu:
 	if [ ! -d "${PWD}/qemu/build" ]; then \
+		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
-		sudo apt install -y \
-			bear libfdt-dev libglib2.0-dev libpixman-1-dev ninja-build python3-pip zlib1g-dev; \
+		sudo apt build-dep -y qemu \
 		\
 		cd ${PWD}/qemu && \
 		./configure \
