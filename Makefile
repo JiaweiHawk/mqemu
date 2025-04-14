@@ -319,7 +319,7 @@ kernel:
 	if [ ! -f "${PWD}/kernel/vmlinux" ]; then \
 		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
-		sudo apt build-dep -y linux \
+		sudo apt build-dep -y linux; \
 		\
 		make \
 			-C ${PWD}/kernel \
@@ -353,7 +353,7 @@ libvirt:
 	if [ ! -d ${PWD}/libvirt/build ]; then \
 		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
-		sudo apt build-dep -y libvirt \
+		sudo apt build-dep -y libvirt; \
 		\
 		meson setup ${PWD}/libvirt/build ${PWD}/libvirt; \
 		meson configure ${PWD}/libvirt/build -Ddriver_qemu=enabled; \
@@ -371,7 +371,7 @@ qemu:
 	if [ ! -d "${PWD}/qemu/build" ]; then \
 		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
-		sudo apt build-dep -y qemu \
+		sudo apt build-dep -y qemu; \
 		\
 		cd ${PWD}/qemu && \
 		./configure \
