@@ -233,6 +233,8 @@ debug_l1:
 			-iex "set confirm on" \
 			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
 			--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
+			--eval-command="hbreak start_kernel" \
+			--eval-command="continue" \
 			${PWD}/kernel/vmlinux
 
 init_l1:
