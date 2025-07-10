@@ -355,7 +355,8 @@ libvirt:
 	if [ ! -d ${PWD}/libvirt/build ]; then \
 		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
-		sudo apt build-dep -y libvirt; \
+		sudo apt build-dep -y libvirt && \
+		sudo apt install -y libjson-c-dev; \
 		\
 		meson setup ${PWD}/libvirt/build ${PWD}/libvirt; \
 		meson configure ${PWD}/libvirt/build -Ddriver_qemu=enabled; \
