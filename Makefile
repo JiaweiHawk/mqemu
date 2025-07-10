@@ -374,7 +374,8 @@ qemu:
 	if [ ! -d "${PWD}/qemu/build" ]; then \
 		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
-		sudo apt build-dep -y qemu; \
+		sudo apt build-dep -y qemu && \
+		sudo apt install -y python3-pip; \
 		\
 		cd ${PWD}/qemu && \
 		./configure \
