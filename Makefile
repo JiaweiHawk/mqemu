@@ -359,7 +359,7 @@ libvirt:
 		sudo apt install -y libjson-c-dev; \
 		\
 		meson setup ${PWD}/libvirt/build ${PWD}/libvirt; \
-		meson configure ${PWD}/libvirt/build -Ddriver_qemu=enabled; \
+		meson configure ${PWD}/libvirt/build --auto-features disabled -Ddriver_remote=enabled -Ddriver_libvirtd=enabled -Ddriver_qemu=enabled -Djson_c=enabled; \
 		\
 	fi
 
@@ -549,7 +549,7 @@ rootfs_src:
 		sudo chroot \
 			${PWD}/${ROOTFS_SRC} \
 			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdb libfdt-dev libglib2.0-dev libpixman-1-dev make netcat-openbsd openssh-server"; \
+				-c "apt update && apt install -y bash-completion gdb libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
 		\
 		#设置网卡 \
 		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
@@ -607,7 +607,7 @@ rootfs_dst:
 		sudo chroot \
 			${PWD}/${ROOTFS_DST} \
 			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdb libfdt-dev libglib2.0-dev libpixman-1-dev make netcat-openbsd openssh-server"; \
+				-c "apt update && apt install -y bash-completion gdb libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
 		\
 		#设置网卡 \
 		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
