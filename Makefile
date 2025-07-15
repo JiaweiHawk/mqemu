@@ -380,8 +380,10 @@ qemu:
 		cd ${PWD}/qemu && \
 		./configure \
 			--target-list=x86_64-softmmu \
+			--without-default-features \
 			--enable-debug \
 			--enable-kvm \
+			--enable-attr \
 			--enable-virtfs; \
 	fi
 
