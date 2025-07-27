@@ -58,7 +58,7 @@ SRC_MAC					:= aa:aa:cc:cc:aa:aa
 SRC_IP					:= ${NET_MIGRATE_PREFIX}.130
 CONSOLE_SRC_PORT		:= 1236
 GDB_KERNEL_SRC_PORT		:= 1237
-GDB_QEMU_SRC_SYNC_PORT  := 1234
+GDB_QEMU_SRC_PORT  		:= 1234
 
 ROOTFS_DST				:= rootfs_dst
 TAP_DST					:= tap_dst
@@ -66,7 +66,9 @@ DST_MAC					:= cc:aa:aa:aa:aa:cc
 DST_IP					:= ${NET_MIGRATE_PREFIX}.131
 CONSOLE_DST_PORT		:= 1238
 GDB_KERNEL_DST_PORT		:= 1249
-GDB_QEMU_DST_SYNC_PORT  := 1234
+GDB_QEMU_DST_PORT  		:= 1234
+
+QEMU_MIGRATE_GUEST_PATH := ${PWD}/qemu-system-x86_64
 
 ROOTFS_MIGRATE_GUEST	:= rootfs_migrate_guest
 CONSOLE_MIGRATE_GUEST_PORT:= 1235
@@ -232,6 +234,7 @@ debug_l1:
 		gdb \
 			-iex "set confirm on" \
 			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
+			--eval-command="set tcp connect-timeout unlimited" \
 			--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
 			--eval-command="hbreak start_kernel" \
 			--eval-command="continue" \
@@ -268,6 +271,7 @@ gdb_kernel_l1:
 		gdb \
 			-iex "set confirm on" \
 			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
+			--eval-command="set tcp connect-timeout unlimited" \
 			--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
 			${PWD}/kernel/vmlinux
 
@@ -551,7 +555,7 @@ rootfs_src:
 		sudo chroot \
 			${PWD}/${ROOTFS_SRC} \
 			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdb libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
+				-c "apt update && apt install -y bash-completion gdb gdbserver libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
 		\
 		#设置网卡 \
 		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
@@ -609,7 +613,7 @@ rootfs_dst:
 		sudo chroot \
 			${PWD}/${ROOTFS_DST} \
 			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdb libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
+				-c "apt update && apt install -y bash-completion gdb gdbserver libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
 		\
 		#设置网卡 \
 		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
@@ -780,12 +784,22 @@ console_dst_guest:
 		telnet ${DST_IP} ${CONSOLE_MIGRATE_GUEST_PORT}
 
 migrate:
+	#设置qemu的gdbserver
+	echo '#!/bin/sh' | tee ${QEMU_MIGRATE_GUEST_PATH}
+	echo 'guest=$$(echo "$$@" | sed -n "s|.* guest=\([^,]*\).*|\1|p")' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
+	echo 'if [ "$$guest" = "" ]; then' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
+	echo 'exec ${PWD}/qemu/build/qemu-system-x86_64 "$$@"' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
+	echo 'else' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
+	echo 'exec gdbserver 0.0.0.0:${GDB_QEMU_SRC_PORT} ${PWD}/qemu/build/qemu-system-x86_64 "$$@"' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
+	echo 'fi' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
+	chmod +x ${QEMU_MIGRATE_GUEST_PATH}
+
 	#设置guest的xml
 	cp ${PWD}/migrate_guest.example.xml ${PWD}/migrate_guest.xml
 	sed -i "s|{NAME}|migrate_guest|" ${PWD}/migrate_guest.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/migrate_guest.xml
 	sed -i "s|{INITRD}|${PWD}/${ROOTFS_MIGRATE_GUEST}.cpio|" ${PWD}/migrate_guest.xml
-	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/migrate_guest.xml
+	sed -i "s|{QEMU}|${QEMU_MIGRATE_GUEST_PATH}|" ${PWD}/migrate_guest.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_MIGRATE_GUEST_PORT}|" ${PWD}/migrate_guest.xml
 
 	#启动src上libvirtd的gdb
@@ -797,17 +811,10 @@ migrate:
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
 			${USER}@${SRC_IP} \
-			'echo "break virCommandHandshakeNotify" > wait_to_gdb_qemu && \
-			echo "  command" >> wait_to_gdb_qemu && \
-			echo "    silent" >> wait_to_gdb_qemu && \
-			echo "    shell echo | nc -W 1 ${SRC_IP} ${GDB_QEMU_SRC_SYNC_PORT}" >> wait_to_gdb_qemu && \
-			echo "    continue" >> wait_to_gdb_qemu && \
-			echo "  end" >> wait_to_gdb_qemu && \
-			gdb \
+			'gdb \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
 				-ex "set follow-fork-mode parent" \
-				-x wait_to_gdb_qemu \
 				-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)'
 
 	#启动src上qemu的gdb
@@ -819,13 +826,13 @@ migrate:
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
 			${USER}@${SRC_IP} \
-			'nc -W 1 -l ${GDB_QEMU_SRC_SYNC_PORT} && \
-			gdb \
+			'gdb \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
 				-ex "handle SIGUSR1 noprint" \
-				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
-				-p $$(cat $$XDG_RUNTIME_DIR/libvirt/qemu/run/migrate_guest.pid)'
+				-ex "set tcp connect-timeout unlimited" \
+				-ex "target remote localhost:${GDB_QEMU_SRC_PORT}" \
+				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py"'
 
 	#启动dst上libvirtd的gdb
 	gnome-terminal \
@@ -836,17 +843,10 @@ migrate:
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
 			${USER}@${DST_IP} \
-			'echo "break virCommandHandshakeNotify" > wait_to_gdb_qemu && \
-			echo "  command" >> wait_to_gdb_qemu && \
-			echo "    silent" >> wait_to_gdb_qemu && \
-			echo "    shell echo | nc -W 1 ${DST_IP} ${GDB_QEMU_DST_SYNC_PORT}" >> wait_to_gdb_qemu && \
-			echo "    continue" >> wait_to_gdb_qemu && \
-			echo "  end" >> wait_to_gdb_qemu && \
-			gdb \
+			'gdb \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
 				-ex "set follow-fork-mode parent" \
-				-x wait_to_gdb_qemu \
 				-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)'
 
 	#启动dst上qemu的gdb
@@ -858,13 +858,13 @@ migrate:
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
 			${USER}@${DST_IP} \
-			'nc -W 1 -l ${GDB_QEMU_DST_SYNC_PORT} && \
-			gdb \
+			'gdb \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
 				-ex "handle SIGUSR1 noprint" \
-				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
-				-p $$(cat $$XDG_RUNTIME_DIR/libvirt/qemu/run/migrate_guest.pid)'
+				-ex "set tcp connect-timeout unlimited" \
+				-ex "target remote localhost:${GDB_QEMU_DST_PORT}" \
+				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py"'
 
 	#启动src的guest
 	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${SRC_IP}/session?no_verify=1 destroy migrate_guest || exit 0
