@@ -8,7 +8,7 @@ SHARE_TAG 				:= share9p
 USER 					:= $(shell whoami)
 SSH_CONNECTION_ATTEMPTS := 5
 
-ROOTFS_L1 				:= rootfs_l1
+ROOTFS_FOR_L1 			:= rootfs_for_l1
 TAP_L0					:= tap0
 L1_MAC					:= aa:bb:cc:cc:bb:aa
 L1_IP					:= ${NET_PREFIX}.128
@@ -20,7 +20,7 @@ define QEMU_OPTIONS_L1
        -m 4G \
        -kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
        -append "rdinit=/sbin/init panic=-1 console=ttyS0 nokaslr" \
-       -initrd ${PWD}/${ROOTFS_L1}.cpio \
+       -initrd ${PWD}/${ROOTFS_FOR_L1}.cpio \
        -netdev tap,id=net,ifname=${TAP_L0},script=no,downscript=no \
        -device virtio-net-pci,netdev=net \
        -fsdev local,id=share,path=${PWD},security_model=none \
@@ -29,7 +29,7 @@ define QEMU_OPTIONS_L1
        -nographic -no-reboot
 endef #define QEMU_OPTIONS_L1
 
-ROOTFS_L2 				:= rootfs_l2
+ROOTFS_FOR_L2 			:= rootfs_for_l2
 BRIDGE_L1				:= br1
 TAP_L1					:= tap1
 L2_MAC					:= cc:bb:aa:aa:bb:cc
@@ -41,7 +41,7 @@ define QEMU_OPTIONS_L2
 	-L ${PWD}/qemu/pc-bios \
 	-kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
 	-append "rdinit=/sbin/init panic=-1 console=ttyS0 nokaslr" \
-	-initrd ${PWD}/${ROOTFS_L2}.cpio \
+	-initrd ${PWD}/${ROOTFS_FOR_L2}.cpio \
 	-netdev tap,id=net,ifname=${TAP_L1},script=no,downscript=no \
 	-device virtio-net-pci,mac=${L2_MAC},netdev=net \
 	-enable-kvm \
@@ -52,7 +52,7 @@ BRIDGE_MIGRATE 			:= br_migrate
 NET_MIGRATE_PREFIX		:= 172.192.169
 NET_MIGRATE_MASK		:= 24
 
-ROOTFS_SRC				:= rootfs_src
+ROOTFS_FOR_SRC			:= rootfs_for_src
 TAP_SRC					:= tap_src
 SRC_MAC					:= aa:aa:cc:cc:aa:aa
 SRC_IP					:= ${NET_MIGRATE_PREFIX}.130
@@ -60,7 +60,7 @@ CONSOLE_SRC_PORT		:= 1236
 GDB_KERNEL_SRC_PORT		:= 1237
 GDB_QEMU_SRC_PORT  		:= 1234
 
-ROOTFS_DST				:= rootfs_dst
+ROOTFS_FOR_DST			:= rootfs_for_dst
 TAP_DST					:= tap_dst
 DST_MAC					:= cc:aa:aa:aa:aa:cc
 DST_IP					:= ${NET_MIGRATE_PREFIX}.131
@@ -70,10 +70,10 @@ GDB_QEMU_DST_PORT  		:= 1234
 
 QEMU_MIGRATE_GUEST_PATH := ${PWD}/qemu-system-x86_64
 
-ROOTFS_MIGRATE_GUEST	:= rootfs_migrate_guest
+ROOTFS_FOR_MIGRATE_GUEST:= rootfs_for_migrate_guest
 CONSOLE_MIGRATE_GUEST_PORT:= 1235
 
-.PHONY: build kernel libvirt qemu rootfs_dst rootfs_l1 rootfs_l2 rootfs_migrate_guest rootfs_src submodules \
+.PHONY: build kernel libvirt qemu rootfs_for_dst rootfs_for_l1 rootfs_for_l2 rootfs_for_migrate_guest rootfs_for_src submodules \
 		fini_env gdb_libvirtd init_env \
 		console_l1 debug_l1 fini_l1 gdb_kernel_l1 gdb_qemu_l1 init_l1 ssh_l1 \
 		run_l2 ssh_l2 \
@@ -246,7 +246,7 @@ init_l1:
 	cp ${PWD}/l1.example.xml ${PWD}/l1.xml
 	sed -i "s|{NAME}|l1|" ${PWD}/l1.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/l1.xml
-	sed -i "s|{INITRD}|${PWD}/${ROOTFS_L1}.cpio|" ${PWD}/l1.xml
+	sed -i "s|{INITRD}|${PWD}/${ROOTFS_FOR_L1}.cpio|" ${PWD}/l1.xml
 	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/l1.xml
 	sed -i "s|{TAP}|${TAP_L0}|" ${PWD}/l1.xml
 	sed -i "s|{SHARE_HOST}|${PWD}|" ${PWD}/l1.xml
@@ -318,7 +318,7 @@ ssh_l2:
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			root@${L2_IP}
 
-build: kernel libvirt qemu rootfs_dst rootfs_l1 rootfs_l2 rootfs_migrate_guest rootfs_src
+build: kernel libvirt qemu rootfs_for_dst rootfs_for_l1 rootfs_for_l2 rootfs_for_migrate_guest rootfs_for_src
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
 
 kernel:
@@ -400,8 +400,8 @@ qemu:
 
 	@echo -e '\033[0;32m[*]\033[0mbuild the qemu'
 
-rootfs_l1:
-	if [ ! -d ${PWD}/${ROOTFS_L1} ]; then \
+rootfs_for_l1:
+	if [ ! -d ${PWD}/${ROOTFS_FOR_L1} ]; then \
 		sudo apt update && \
 		sudo apt install -y \
 			debootstrap; \
@@ -409,68 +409,68 @@ rootfs_l1:
 		sudo debootstrap \
 			--components=main,contrib,non-free,non-free-firmware \
 			stable \
-			${PWD}/${ROOTFS_L1} \
+			${PWD}/${ROOTFS_FOR_L1} \
 			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
 		\
 		sudo chroot \
-			${PWD}/${ROOTFS_L1} \
+			${PWD}/${ROOTFS_FOR_L1} \
 			/bin/bash \
 				-c "apt update && apt install -y bash-completion gdb git isc-dhcp-client libfdt-dev libglib2.0-dev libpixman-1-dev make openssh-server pciutils strace wget"; \
 		\
 		#设置网卡 \
-		echo "iface enp0s3 inet manual" | sudo tee ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "up ip link set dev enp0s3 up" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "down ip link set dev enp0s3 down" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "iface enp0s3 inet manual" | sudo tee ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "up ip link set dev enp0s3 up" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "down ip link set dev enp0s3 down" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/enp0s3.interface; \
 		\
 		#设置tap \
-		echo "iface ${TAP_L1} inet manual" | sudo tee ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
-		echo "pre-up ip tuntap add name ${TAP_L1} mode tap" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
-		echo "up ip link set dev ${TAP_L1} up" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
-		echo "down ip link set dev ${TAP_L1} down" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
-		echo "post-down ip tuntap del ${TAP_L1} mode tap" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
+		echo "iface ${TAP_L1} inet manual" | sudo tee ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
+		echo "pre-up ip tuntap add name ${TAP_L1} mode tap" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
+		echo "up ip link set dev ${TAP_L1} up" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
+		echo "down ip link set dev ${TAP_L1} down" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
+		echo "post-down ip tuntap del ${TAP_L1} mode tap" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${TAP_L1}.interface; \
 		\
 		#设置bridge \
-		echo "auto ${BRIDGE_L1}" | sudo tee ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "iface ${BRIDGE_L1} inet manual" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "pre-up ip link add name ${BRIDGE_L1} type bridge" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "pre-up ip link set dev ${BRIDGE_L1} address ${L1_MAC}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "up ifup enp0s3" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "up ip link set dev enp0s3 master ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "up ifup ${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "up ip link set dev ${TAP_L1} master ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "up ip link set dev ${BRIDGE_L1} up" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "post-up dhclient -i ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "pre-down dhclient -r ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "down ip link set dev ${BRIDGE_L1} down" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "down ip link set dev ${TAP_L1} nomaster" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "down ifdown ${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "down ip link set dev enp0s3 nomaster" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "down ifdown enp0s3" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "post-down ip link del ${BRIDGE_L1} type bridge" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "auto ${BRIDGE_L1}" | sudo tee ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "iface ${BRIDGE_L1} inet manual" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "pre-up ip link add name ${BRIDGE_L1} type bridge" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "pre-up ip link set dev ${BRIDGE_L1} address ${L1_MAC}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ifup enp0s3" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ip link set dev enp0s3 master ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ifup ${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ip link set dev ${TAP_L1} master ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ip link set dev ${BRIDGE_L1} up" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "post-up dhclient -i ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "pre-down dhclient -r ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ip link set dev ${BRIDGE_L1} down" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ip link set dev ${TAP_L1} nomaster" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ifdown ${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ip link set dev enp0s3 nomaster" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ifdown enp0s3" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "post-down ip link del ${BRIDGE_L1} type bridge" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		\
 		#开启ip转发 \
-		sudo sed -i "s|^#net.ipv4.ip_forward=1|net.ipv4.ip_forward=1|" ${PWD}/${ROOTFS_L1}/etc/sysctl.conf; \
+		sudo sed -i "s|^#net.ipv4.ip_forward=1|net.ipv4.ip_forward=1|" ${PWD}/${ROOTFS_FOR_L1}/etc/sysctl.conf; \
 		\
 		#设置ssh服务器 \
-		sudo sed -i "s|^#PermitEmptyPasswords no|PermitEmptyPasswords yes|" ${PWD}/${ROOTFS_L1}/etc/ssh/sshd_config; \
-		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_L1}/etc/ssh/sshd_config; \
+		sudo sed -i "s|^#PermitEmptyPasswords no|PermitEmptyPasswords yes|" ${PWD}/${ROOTFS_FOR_L1}/etc/ssh/sshd_config; \
+		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_FOR_L1}/etc/ssh/sshd_config; \
 		\
 		#设置mqemu文件夹 \
-		echo "${SHARE_TAG} /root 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_L1}/etc/fstab; \
+		echo "${SHARE_TAG} /root 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/fstab; \
 		\
 		#设置主机名称 \
-		echo "l1" | sudo tee ${PWD}/${ROOTFS_L1}/etc/hostname; \
+		echo "l1" | sudo tee ${PWD}/${ROOTFS_FOR_L1}/etc/hostname; \
 		\
 		#设置密码 \
-		sudo chroot ${PWD}/${ROOTFS_L1} /bin/bash -c "passwd -d root"; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_L1} /bin/bash -c "passwd -d root"; \
 	fi
 
-	cd ${PWD}/${ROOTFS_L1} && \
-	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_L1}.cpio >/dev/null
+	cd ${PWD}/${ROOTFS_FOR_L1} && \
+	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_FOR_L1}.cpio >/dev/null
 
-	@echo -e '\033[0;32m[*]\033[0mbuild the l1 rootfs'
+	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs for l1'
 
-rootfs_l2:
+rootfs_for_l2:
 	if [ ! -d ${PWD}/${BUSYBOX} ]; then \
 		wget https://busybox.net/downloads/${BUSYBOX}.tar.bz2; \
 		tar -jxvf ${PWD}/${BUSYBOX}.tar.bz2; \
@@ -494,54 +494,54 @@ rootfs_l2:
 			make strip; \
 	fi
 
-	if [ ! -d ${PWD}/${ROOTFS_L2} ]; then \
-		mkdir -p ${PWD}/${ROOTFS_L2}/dev/pts \
-			${PWD}/${ROOTFS_L2}/etc/dropbear \
-			${PWD}/${ROOTFS_L2}/etc/init.d \
-			${PWD}/${ROOTFS_L2}/home/root \
-			${PWD}/${ROOTFS_L2}/proc \
-			${PWD}/${ROOTFS_L2}/sys \
-			${PWD}/${ROOTFS_L2}/usr/share/udhcp; \
+	if [ ! -d ${PWD}/${ROOTFS_FOR_L2} ]; then \
+		mkdir -p ${PWD}/${ROOTFS_FOR_L2}/dev/pts \
+			${PWD}/${ROOTFS_FOR_L2}/etc/dropbear \
+			${PWD}/${ROOTFS_FOR_L2}/etc/init.d \
+			${PWD}/${ROOTFS_FOR_L2}/home/root \
+			${PWD}/${ROOTFS_FOR_L2}/proc \
+			${PWD}/${ROOTFS_FOR_L2}/sys \
+			${PWD}/${ROOTFS_FOR_L2}/usr/share/udhcp; \
 		\
-		touch ${PWD}/${ROOTFS_L2}/etc/passwd \
-			${PWD}/${ROOTFS_L2}/etc/group; \
+		touch ${PWD}/${ROOTFS_FOR_L2}/etc/passwd \
+			${PWD}/${ROOTFS_FOR_L2}/etc/group; \
 		\
-		make -C ${PWD}/${BUSYBOX} CONFIG_PREFIX=${PWD}/${ROOTFS_L2} install; \
-		make -C ${PWD}/${DROPBEAR} install DESTDIR=${PWD}/${ROOTFS_L2}; \
+		make -C ${PWD}/${BUSYBOX} CONFIG_PREFIX=${PWD}/${ROOTFS_FOR_L2} install; \
+		make -C ${PWD}/${DROPBEAR} install DESTDIR=${PWD}/${ROOTFS_FOR_L2}; \
 		\
 		#设置udhcpc \
-		cp ${PWD}/${BUSYBOX}/examples/udhcp/simple.script ${PWD}/${ROOTFS_L2}/usr/share/udhcp/default.script; \
+		cp ${PWD}/${BUSYBOX}/examples/udhcp/simple.script ${PWD}/${ROOTFS_FOR_L2}/usr/share/udhcp/default.script; \
 		\
 		#设置inittab文件 \
-		echo "::sysinit:/etc/init.d/rcS" | sudo tee ${PWD}/${ROOTFS_L2}/etc/inittab; \
-		echo "ttyS0::respawn:/bin/sh" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/inittab; \
+		echo "::sysinit:/etc/init.d/rcS" | sudo tee ${PWD}/${ROOTFS_FOR_L2}/etc/inittab; \
+		echo "ttyS0::respawn:/bin/sh" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/inittab; \
 		\
 		#设置初始化脚本 \
-		echo "#!/bin/sh" | sudo tee ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
-		echo "mount -a" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
-		echo "/sbin/mdev -s" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
-		echo "/sbin/ip link set dev eth0 address ${L2_MAC}" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
-		echo "/sbin/syslogd -K" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
-		echo "/sbin/udhcpc -i eth0 -s /usr/share/udhcp/default.script -S" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
-		echo "/usr/sbin/addgroup -S -g 0 root" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
-		echo "/usr/sbin/adduser -S -u 0 -G root -s /bin/sh -D root" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
-		echo "/usr/bin/passwd -d root" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
-		echo "/usr/local/sbin/dropbear -BRp 22" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
-		sudo chmod +x ${PWD}/${ROOTFS_L2}/etc/init.d/rcS; \
+		echo "#!/bin/sh" | sudo tee ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
+		echo "mount -a" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
+		echo "/sbin/mdev -s" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
+		echo "/sbin/ip link set dev eth0 address ${L2_MAC}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
+		echo "/sbin/syslogd -K" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
+		echo "/sbin/udhcpc -i eth0 -s /usr/share/udhcp/default.script -S" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
+		echo "/usr/sbin/addgroup -S -g 0 root" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
+		echo "/usr/sbin/adduser -S -u 0 -G root -s /bin/sh -D root" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
+		echo "/usr/bin/passwd -d root" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
+		echo "/usr/local/sbin/dropbear -BRp 22" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
+		sudo chmod +x ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
 		\
 		#设置挂载文件信息 \
-		echo "devpts /dev/pts devpts defaults 0 0" | sudo tee ${PWD}/${ROOTFS_L2}/etc/fstab; \
-		echo "proc /proc proc defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/fstab; \
-		echo "sysfs /sys sysfs defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_L2}/etc/fstab; \
+		echo "devpts /dev/pts devpts defaults 0 0" | sudo tee ${PWD}/${ROOTFS_FOR_L2}/etc/fstab; \
+		echo "proc /proc proc defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/fstab; \
+		echo "sysfs /sys sysfs defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/fstab; \
 	fi
 
-	cd ${PWD}/${ROOTFS_L2} && \
-	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_L2}.cpio >/dev/null
+	cd ${PWD}/${ROOTFS_FOR_L2} && \
+	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_FOR_L2}.cpio >/dev/null
 
-	@echo -e '\033[0;32m[*]\033[0mbuild the l2 rootfs'
+	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs for l2'
 
-rootfs_src:
-	if [ ! -d ${PWD}/${ROOTFS_SRC} ]; then \
+rootfs_for_src:
+	if [ ! -d ${PWD}/${ROOTFS_FOR_SRC} ]; then \
 		sudo apt update && \
 		sudo apt install -y \
 			debootstrap; \
@@ -549,57 +549,57 @@ rootfs_src:
 		sudo debootstrap \
 			--components=main,contrib,non-free,non-free-firmware \
 			stable \
-			${PWD}/${ROOTFS_SRC} \
+			${PWD}/${ROOTFS_FOR_SRC} \
 			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
 		\
 		sudo chroot \
-			${PWD}/${ROOTFS_SRC} \
+			${PWD}/${ROOTFS_FOR_SRC} \
 			/bin/bash \
 				-c "apt update && apt install -y bash-completion gdb gdbserver isc-dhcp-client libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
 		\
 		#设置网卡 \
-		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "iface enp0s3 inet manual" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "up ip link set dev enp0s3 up" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "post-up dhclient -i enp0s3" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "pre-down dhclient -r enp0s3" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "down ip link set dev enp0s3 down" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_FOR_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "iface enp0s3 inet manual" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "up ip link set dev enp0s3 up" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "post-up dhclient -i enp0s3" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "pre-down dhclient -r enp0s3" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "down ip link set dev enp0s3 down" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/network/interfaces.d/enp0s3.interface; \
 		\
 		#设置ssh服务器 \
-		sudo sed -i "s|^#PermitEmptyPasswords no|PermitEmptyPasswords yes|" ${PWD}/${ROOTFS_SRC}/etc/ssh/sshd_config; \
-		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_SRC}/etc/ssh/sshd_config; \
+		sudo sed -i "s|^#PermitEmptyPasswords no|PermitEmptyPasswords yes|" ${PWD}/${ROOTFS_FOR_SRC}/etc/ssh/sshd_config; \
+		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_FOR_SRC}/etc/ssh/sshd_config; \
 		\
 		#设置mqemu文件夹 \
-		sudo chroot ${PWD}/${ROOTFS_SRC} /bin/bash -c "useradd -m -G kvm -s /bin/bash ${USER} && passwd -d ${USER}"; \
-		sudo chroot ${PWD}/${ROOTFS_SRC} su ${USER} -c "mkdir -p ${PWD}"; \
-		echo "${SHARE_TAG} ${PWD} 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/fstab; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_SRC} /bin/bash -c "useradd -m -G kvm -s /bin/bash ${USER} && passwd -d ${USER}"; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_SRC} su ${USER} -c "mkdir -p ${PWD}"; \
+		echo "${SHARE_TAG} ${PWD} 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/fstab; \
 		\
 		#设置主机名称 \
-		echo "src" | sudo tee ${PWD}/${ROOTFS_SRC}/etc/hostname; \
+		echo "src" | sudo tee ${PWD}/${ROOTFS_FOR_SRC}/etc/hostname; \
 		\
 		#设置root密码 \
-		sudo chroot ${PWD}/${ROOTFS_SRC} /bin/bash -c "passwd -d root"; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_SRC} /bin/bash -c "passwd -d root"; \
 		\
 		#设置libvirtd \
-		sudo sed -i "4i export PATH=${PWD}/libvirt/build/src:\$$PATH" ${PWD}/${ROOTFS_SRC}/home/${USER}/.bashrc; \
-		echo "[Unit]" | sudo tee ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
-		echo "Description=libvirt daemon" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
-		echo "[Service]" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
-		echo "User=${USER}" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
-		echo "PAMName=login" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
-		echo "ExecStart=${PWD}/libvirt/build/src/libvirtd" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
-		echo "[Install]" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
-		echo "WantedBy=multi-user.target" | sudo tee -a ${PWD}/${ROOTFS_SRC}/etc/systemd/system/libvirtd.service; \
-		sudo chroot ${PWD}/${ROOTFS_SRC} /bin/bash -c "systemctl enable libvirtd"; \
+		sudo sed -i "4i export PATH=${PWD}/libvirt/build/src:\$$PATH" ${PWD}/${ROOTFS_FOR_SRC}/home/${USER}/.bashrc; \
+		echo "[Unit]" | sudo tee ${PWD}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "Description=libvirt daemon" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "[Service]" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "User=${USER}" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "PAMName=login" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "ExecStart=${PWD}/libvirt/build/src/libvirtd" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "[Install]" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "WantedBy=multi-user.target" | sudo tee -a ${PWD}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_SRC} /bin/bash -c "systemctl enable libvirtd"; \
 	fi
 
-	cd ${PWD}/${ROOTFS_SRC} && \
-	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_SRC}.cpio >/dev/null
+	cd ${PWD}/${ROOTFS_FOR_SRC} && \
+	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_FOR_SRC}.cpio >/dev/null
 
-	@echo -e '\033[0;32m[*]\033[0mbuild the src rootfs'
+	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs for src'
 
-rootfs_dst:
-	if [ ! -d ${PWD}/${ROOTFS_DST} ]; then \
+rootfs_for_dst:
+	if [ ! -d ${PWD}/${ROOTFS_FOR_DST} ]; then \
 		sudo apt update && \
 		sudo apt install -y \
 			debootstrap; \
@@ -607,61 +607,61 @@ rootfs_dst:
 		sudo debootstrap \
 			--components=main,contrib,non-free,non-free-firmware \
 			stable \
-			${PWD}/${ROOTFS_DST} \
+			${PWD}/${ROOTFS_FOR_DST} \
 			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
 		\
 		sudo chroot \
-			${PWD}/${ROOTFS_DST} \
+			${PWD}/${ROOTFS_FOR_DST} \
 			/bin/bash \
 				-c "apt update && apt install -y bash-completion gdb gdbserver isc-dhcp-client libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
 		\
 		#设置网卡 \
-		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "iface enp0s3 inet manual" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "up ip link set dev enp0s3 up" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "post-up dhclient -i enp0s3" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "pre-down dhclient -r enp0s3" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "down ip link set dev enp0s3 down" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_FOR_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "iface enp0s3 inet manual" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "up ip link set dev enp0s3 up" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "post-up dhclient -i enp0s3" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "pre-down dhclient -r enp0s3" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "down ip link set dev enp0s3 down" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/network/interfaces.d/enp0s3.interface; \
 		\
 		#设置ssh服务器 \
-		sudo sed -i "s|^#PermitEmptyPasswords no|PermitEmptyPasswords yes|" ${PWD}/${ROOTFS_DST}/etc/ssh/sshd_config; \
-		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_DST}/etc/ssh/sshd_config; \
+		sudo sed -i "s|^#PermitEmptyPasswords no|PermitEmptyPasswords yes|" ${PWD}/${ROOTFS_FOR_DST}/etc/ssh/sshd_config; \
+		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_FOR_DST}/etc/ssh/sshd_config; \
 		\
 		#设置mqemu文件夹 \
-		sudo chroot ${PWD}/${ROOTFS_DST} /bin/bash -c "useradd -m -G kvm -s /bin/bash ${USER} && passwd -d ${USER}"; \
-		sudo chroot ${PWD}/${ROOTFS_DST} su ${USER} -c "mkdir -p ${PWD}"; \
-		echo "${SHARE_TAG} ${PWD} 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/fstab; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_DST} /bin/bash -c "useradd -m -G kvm -s /bin/bash ${USER} && passwd -d ${USER}"; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_DST} su ${USER} -c "mkdir -p ${PWD}"; \
+		echo "${SHARE_TAG} ${PWD} 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/fstab; \
 		\
 		#设置主机名称 \
-		echo "dst" | sudo tee ${PWD}/${ROOTFS_DST}/etc/hostname; \
+		echo "dst" | sudo tee ${PWD}/${ROOTFS_FOR_DST}/etc/hostname; \
 		\
 		#设置root密码 \
-		sudo chroot ${PWD}/${ROOTFS_DST} /bin/bash -c "passwd -d root"; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_DST} /bin/bash -c "passwd -d root"; \
 		\
 		#设置libvirtd \
-		sudo sed -i "4i export PATH=${PWD}/libvirt/build/src:\$$PATH" ${PWD}/${ROOTFS_DST}/home/${USER}/.bashrc; \
-		echo "[Unit]" | sudo tee ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
-		echo "Description=libvirt daemon" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
-		echo "[Service]" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
-		echo "User=${USER}" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
-		echo "PAMName=login" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
-		echo "ExecStart=${PWD}/libvirt/build/src/libvirtd" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
-		echo "[Install]" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
-		echo "WantedBy=multi-user.target" | sudo tee -a ${PWD}/${ROOTFS_DST}/etc/systemd/system/libvirtd.service; \
-		sudo chroot ${PWD}/${ROOTFS_DST} /bin/bash -c "systemctl enable libvirtd"; \
+		sudo sed -i "4i export PATH=${PWD}/libvirt/build/src:\$$PATH" ${PWD}/${ROOTFS_FOR_DST}/home/${USER}/.bashrc; \
+		echo "[Unit]" | sudo tee ${PWD}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
+		echo "Description=libvirt daemon" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
+		echo "[Service]" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
+		echo "User=${USER}" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
+		echo "PAMName=login" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
+		echo "ExecStart=${PWD}/libvirt/build/src/libvirtd" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
+		echo "[Install]" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
+		echo "WantedBy=multi-user.target" | sudo tee -a ${PWD}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_DST} /bin/bash -c "systemctl enable libvirtd"; \
 	fi
 
-	cd ${PWD}/${ROOTFS_DST} && \
-	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_DST}.cpio >/dev/null
+	cd ${PWD}/${ROOTFS_FOR_DST} && \
+	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_FOR_DST}.cpio >/dev/null
 
-	@echo -e '\033[0;32m[*]\033[0mbuild the dst rootfs'
+	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs for dst'
 
 init_migrate:
 	${PWD}/libvirt/build/tools/virsh undefine src || exit 0
 	cp ${PWD}/migrate.example.xml ${PWD}/src.xml
 	sed -i "s|{NAME}|src|" ${PWD}/src.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/src.xml
-	sed -i "s|{INITRD}|${PWD}/${ROOTFS_SRC}.cpio|" ${PWD}/src.xml
+	sed -i "s|{INITRD}|${PWD}/${ROOTFS_FOR_SRC}.cpio|" ${PWD}/src.xml
 	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/src.xml
 	sed -i "s|{TAP}|${TAP_SRC}|" ${PWD}/src.xml
 	sed -i "s|{MACADDRESS}|${SRC_MAC}|" ${PWD}/src.xml
@@ -676,7 +676,7 @@ init_migrate:
 	cp ${PWD}/migrate.example.xml ${PWD}/dst.xml
 	sed -i "s|{NAME}|dst|" ${PWD}/dst.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/dst.xml
-	sed -i "s|{INITRD}|${PWD}/${ROOTFS_DST}.cpio|" ${PWD}/dst.xml
+	sed -i "s|{INITRD}|${PWD}/${ROOTFS_FOR_DST}.cpio|" ${PWD}/dst.xml
 	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/dst.xml
 	sed -i "s|{TAP}|${TAP_DST}|" ${PWD}/dst.xml
 	sed -i "s|{MACADDRESS}|${DST_MAC}|" ${PWD}/dst.xml
@@ -724,7 +724,7 @@ fini_migrate:
 	${PWD}/libvirt/build/tools/virsh destroy dst || exit 0
 	${PWD}/libvirt/build/tools/virsh undefine dst || exit 0
 
-rootfs_migrate_guest:
+rootfs_for_migrate_guest:
 	if [ ! -d ${PWD}/${BUSYBOX} ]; then \
 		wget https://busybox.net/downloads/${BUSYBOX}.tar.bz2; \
 		tar -jxvf ${PWD}/${BUSYBOX}.tar.bz2; \
@@ -733,43 +733,43 @@ rootfs_migrate_guest:
 		make -C ${PWD}/${BUSYBOX} -j ${NPROC}; \
 	fi
 
-	if [ ! -d ${PWD}/${ROOTFS_MIGRATE_GUEST} ]; then \
-		mkdir -p ${PWD}/${ROOTFS_MIGRATE_GUEST}/dev/pts \
-			${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d \
-			${PWD}/${ROOTFS_MIGRATE_GUEST}/home/root \
-			${PWD}/${ROOTFS_MIGRATE_GUEST}/proc \
-			${PWD}/${ROOTFS_MIGRATE_GUEST}/sys \
+	if [ ! -d ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST} ]; then \
+		mkdir -p ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/dev/pts \
+			${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/init.d \
+			${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/home/root \
+			${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/proc \
+			${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/sys \
 		\
-		touch ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/passwd \
-			${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/group; \
+		touch ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/passwd \
+			${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/group; \
 		\
-		make -C ${PWD}/${BUSYBOX} CONFIG_PREFIX=${PWD}/${ROOTFS_MIGRATE_GUEST} install; \
-		make -C ${PWD}/${DROPBEAR} install DESTDIR=${PWD}/${ROOTFS_MIGRATE_GUEST}; \
+		make -C ${PWD}/${BUSYBOX} CONFIG_PREFIX=${PWD}/${ROOTFS_FOR_MIGRATE_GUEST} install; \
+		make -C ${PWD}/${DROPBEAR} install DESTDIR=${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}; \
 		\
 		#设置inittab文件 \
-		echo "::sysinit:/etc/init.d/rcS" | sudo tee ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/inittab; \
-		echo "ttyS0::respawn:/bin/sh" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/inittab; \
+		echo "::sysinit:/etc/init.d/rcS" | sudo tee ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/inittab; \
+		echo "ttyS0::respawn:/bin/sh" | sudo tee -a ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/inittab; \
 		\
 		#设置初始化脚本 \
-		echo "#!/bin/sh" | sudo tee ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
-		echo "mount -a" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
-		echo "/sbin/mdev -s" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
-		echo "/usr/sbin/addgroup -S -g 0 root" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
-		echo "/usr/sbin/adduser -S -u 0 -G root -s /bin/sh -D root" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
-		echo "/usr/bin/passwd -d root" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
-		sudo chmod +x ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/init.d/rcS; \
+		echo "#!/bin/sh" | sudo tee ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/init.d/rcS; \
+		echo "mount -a" | sudo tee -a ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/init.d/rcS; \
+		echo "/sbin/mdev -s" | sudo tee -a ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/init.d/rcS; \
+		echo "/usr/sbin/addgroup -S -g 0 root" | sudo tee -a ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/init.d/rcS; \
+		echo "/usr/sbin/adduser -S -u 0 -G root -s /bin/sh -D root" | sudo tee -a ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/init.d/rcS; \
+		echo "/usr/bin/passwd -d root" | sudo tee -a ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/init.d/rcS; \
+		sudo chmod +x ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/init.d/rcS; \
 		\
 		#设置挂载文件信息 \
-		echo "devpts /dev/pts devpts defaults 0 0" | sudo tee ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/fstab; \
-		echo "proc /proc proc defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/fstab; \
-		echo "sysfs /sys sysfs defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_MIGRATE_GUEST}/etc/fstab; \
+		echo "devpts /dev/pts devpts defaults 0 0" | sudo tee ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/fstab; \
+		echo "proc /proc proc defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/fstab; \
+		echo "sysfs /sys sysfs defaults 0 0" | sudo tee -a ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/fstab; \
 	fi
 
-	cd ${PWD}/${ROOTFS_MIGRATE_GUEST} && \
-	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_MIGRATE_GUEST}.cpio >/dev/null
-	sudo chown $$USER:$$USER ${PWD}/${ROOTFS_MIGRATE_GUEST}.cpio
+	cd ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST} && \
+	sudo find . | sudo cpio -o --format=newc -F ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}.cpio >/dev/null
+	sudo chown $$USER:$$USER ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}.cpio
 
-	@echo -e '\033[0;32m[*]\033[0mbuild the migrate guest rootfs'
+	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs for migrate guest'
 
 console_src_guest:
 	gnome-terminal \
@@ -798,7 +798,7 @@ migrate:
 	cp ${PWD}/migrate_guest.example.xml ${PWD}/migrate_guest.xml
 	sed -i "s|{NAME}|migrate_guest|" ${PWD}/migrate_guest.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/migrate_guest.xml
-	sed -i "s|{INITRD}|${PWD}/${ROOTFS_MIGRATE_GUEST}.cpio|" ${PWD}/migrate_guest.xml
+	sed -i "s|{INITRD}|${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}.cpio|" ${PWD}/migrate_guest.xml
 	sed -i "s|{QEMU}|${QEMU_MIGRATE_GUEST_PATH}|" ${PWD}/migrate_guest.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_MIGRATE_GUEST_PORT}|" ${PWD}/migrate_guest.xml
 
