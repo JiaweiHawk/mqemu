@@ -30,7 +30,7 @@ define QEMU_OPTIONS_L1
 endef #define QEMU_OPTIONS_L1
 
 ROOTFS_FOR_L2 			:= rootfs_for_l2
-BRIDGE_L1				:= br1
+BRIDGE_L1				:= br_l1
 TAP_L1					:= tap1
 L2_MAC					:= cc:bb:aa:aa:bb:cc
 L2_IP					:= ${NET_PREFIX}.129
