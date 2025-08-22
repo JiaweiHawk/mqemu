@@ -11,7 +11,7 @@ SSH_CONNECTION_ATTEMPTS := 5
 ROOTFS_FOR_L1 			:= rootfs_for_l1
 TAP_L0					:= tap0
 MAC_FOR_L1				:= aa:bb:cc:cc:bb:aa
-L1_IP					:= ${NET_PREFIX}.128
+IP_FOR_L1				:= ${NET_PREFIX}.128
 CONSOLE_L1_PORT			:= 1234
 GDB_KERNEL_L1_PORT		:= 1235
 define QEMU_OPTIONS_L1
@@ -102,7 +102,7 @@ init_env:
 		--bind-interfaces \
 		--dhcp-range=${NET_PREFIX}.2,${NET_PREFIX}.254 \
 		--dhcp-range=${NET_MIGRATE_PREFIX}.2,${NET_MIGRATE_PREFIX}.254 \
-		--dhcp-host=${MAC_FOR_L1},${L1_IP} \
+		--dhcp-host=${MAC_FOR_L1},${IP_FOR_L1} \
 		--dhcp-host=${L2_MAC},${L2_IP} \
 		--dhcp-host=${SRC_MAC},${SRC_IP} \
 		--dhcp-host=${DST_MAC},${DST_IP} \
@@ -307,7 +307,7 @@ ssh_l1:
 		ssh \
 			-o "StrictHostKeyChecking=no" \
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
-			root@${L1_IP}
+			root@${IP_FOR_L1}
 
 ssh_l2:
 	gnome-terminal \
