@@ -10,7 +10,7 @@ SSH_CONNECTION_ATTEMPTS := 5
 
 ROOTFS_FOR_L1 			:= rootfs_for_l1
 TAP_L0					:= tap0
-L1_MAC					:= aa:bb:cc:cc:bb:aa
+MAC_FOR_L1				:= aa:bb:cc:cc:bb:aa
 L1_IP					:= ${NET_PREFIX}.128
 CONSOLE_L1_PORT			:= 1234
 GDB_KERNEL_L1_PORT		:= 1235
@@ -102,7 +102,7 @@ init_env:
 		--bind-interfaces \
 		--dhcp-range=${NET_PREFIX}.2,${NET_PREFIX}.254 \
 		--dhcp-range=${NET_MIGRATE_PREFIX}.2,${NET_MIGRATE_PREFIX}.254 \
-		--dhcp-host=${L1_MAC},${L1_IP} \
+		--dhcp-host=${MAC_FOR_L1},${L1_IP} \
 		--dhcp-host=${L2_MAC},${L2_IP} \
 		--dhcp-host=${SRC_MAC},${SRC_IP} \
 		--dhcp-host=${DST_MAC},${DST_IP} \
@@ -433,7 +433,7 @@ rootfs_for_l1:
 		echo "auto ${BRIDGE_L1}" | sudo tee ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "iface ${BRIDGE_L1} inet manual" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "pre-up ip link add name ${BRIDGE_L1} type bridge" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "pre-up ip link set dev ${BRIDGE_L1} address ${L1_MAC}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "pre-up ip link set dev ${BRIDGE_L1} address ${MAC_FOR_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "up ifup enp0s3" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "up ip link set dev enp0s3 master ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "up ifup ${TAP_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
