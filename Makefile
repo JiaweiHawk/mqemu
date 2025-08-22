@@ -13,7 +13,7 @@ TAP_L0					:= tap0
 MAC_FOR_L1				:= aa:bb:cc:cc:bb:aa
 IP_FOR_L1				:= ${NET_PREFIX}.128
 CONSOLE_PORT_FOR_L1		:= 1234
-GDB_KERNEL_L1_PORT		:= 1235
+GDB_KERNEL_PORT_FOR_L1	:= 1235
 define QEMU_OPTIONS_L1
        -cpu host \
        -smp 4 \
@@ -226,7 +226,7 @@ debug_l1:
 				${QEMU_OPTIONS_L1} \
 				-monitor none \
 				-serial telnet::${CONSOLE_PORT_FOR_L1},server,nowait \
-				-gdb tcp::${GDB_KERNEL_L1_PORT} -S
+				-gdb tcp::${GDB_KERNEL_PORT_FOR_L1} -S
 
 	gnome-terminal \
 		--title "gdb for l1 kernel" \
@@ -235,7 +235,7 @@ debug_l1:
 			-iex "set confirm on" \
 			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
 			--eval-command="set tcp connect-timeout unlimited" \
-			--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
+			--eval-command="target remote localhost:${GDB_KERNEL_PORT_FOR_L1}" \
 			--eval-command="hbreak start_kernel" \
 			--eval-command="continue" \
 			${PWD}/kernel/vmlinux
@@ -252,7 +252,7 @@ init_l1:
 	sed -i "s|{SHARE_HOST}|${PWD}|" ${PWD}/l1.xml
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/l1.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_L1}|" ${PWD}/l1.xml
-	sed -i "s|{GDB_PORT}|${GDB_KERNEL_L1_PORT}|" ${PWD}/l1.xml
+	sed -i "s|{GDB_PORT}|${GDB_KERNEL_PORT_FOR_L1}|" ${PWD}/l1.xml
 	${PWD}/libvirt/build/tools/virsh define ${PWD}/l1.xml || exit 0
 
 	${PWD}/libvirt/build/tools/virsh start l1 || exit 0
@@ -272,7 +272,7 @@ gdb_kernel_l1:
 			-iex "set confirm on" \
 			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
 			--eval-command="set tcp connect-timeout unlimited" \
-			--eval-command="target remote localhost:${GDB_KERNEL_L1_PORT}" \
+			--eval-command="target remote localhost:${GDB_KERNEL_PORT_FOR_L1}" \
 			${PWD}/kernel/vmlinux
 
 gdb_libvirtd:
