@@ -12,7 +12,7 @@ ROOTFS_FOR_L1 			:= rootfs_for_l1
 TAP_L0					:= tap0
 MAC_FOR_L1				:= aa:bb:cc:cc:bb:aa
 IP_FOR_L1				:= ${NET_PREFIX}.128
-CONSOLE_L1_PORT			:= 1234
+CONSOLE_PORT_FOR_L1		:= 1234
 GDB_KERNEL_L1_PORT		:= 1235
 define QEMU_OPTIONS_L1
        -cpu host \
@@ -225,7 +225,7 @@ debug_l1:
 				${PWD}/qemu/build/qemu-system-x86_64 \
 				${QEMU_OPTIONS_L1} \
 				-monitor none \
-				-serial telnet::${CONSOLE_L1_PORT},server,nowait \
+				-serial telnet::${CONSOLE_PORT_FOR_L1},server,nowait \
 				-gdb tcp::${GDB_KERNEL_L1_PORT} -S
 
 	gnome-terminal \
@@ -251,7 +251,7 @@ init_l1:
 	sed -i "s|{TAP}|${TAP_L0}|" ${PWD}/l1.xml
 	sed -i "s|{SHARE_HOST}|${PWD}|" ${PWD}/l1.xml
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/l1.xml
-	sed -i "s|{CONSOLE_PORT}|${CONSOLE_L1_PORT}|" ${PWD}/l1.xml
+	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_L1}|" ${PWD}/l1.xml
 	sed -i "s|{GDB_PORT}|${GDB_KERNEL_L1_PORT}|" ${PWD}/l1.xml
 	${PWD}/libvirt/build/tools/virsh define ${PWD}/l1.xml || exit 0
 
@@ -298,7 +298,7 @@ console_l1:
 	gnome-terminal \
 		--title "console for l1" \
 		-- \
-		telnet localhost ${CONSOLE_L1_PORT}
+		telnet localhost ${CONSOLE_PORT_FOR_L1}
 
 ssh_l1:
 	gnome-terminal \
