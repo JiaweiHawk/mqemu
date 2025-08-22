@@ -415,7 +415,7 @@ rootfs_l1:
 		sudo chroot \
 			${PWD}/${ROOTFS_L1} \
 			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdb git libfdt-dev libglib2.0-dev libpixman-1-dev make openssh-server pciutils strace wget"; \
+				-c "apt update && apt install -y bash-completion gdb git isc-dhcp-client libfdt-dev libglib2.0-dev libpixman-1-dev make openssh-server pciutils strace wget"; \
 		\
 		#设置网卡 \
 		echo "iface enp0s3 inet manual" | sudo tee ${PWD}/${ROOTFS_L1}/etc/network/interfaces.d/enp0s3.interface; \
@@ -555,7 +555,7 @@ rootfs_src:
 		sudo chroot \
 			${PWD}/${ROOTFS_SRC} \
 			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdb gdbserver libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
+				-c "apt update && apt install -y bash-completion gdb gdbserver isc-dhcp-client libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
 		\
 		#设置网卡 \
 		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_SRC}/etc/network/interfaces.d/enp0s3.interface; \
@@ -613,7 +613,7 @@ rootfs_dst:
 		sudo chroot \
 			${PWD}/${ROOTFS_DST} \
 			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdb gdbserver libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
+				-c "apt update && apt install -y bash-completion gdb gdbserver isc-dhcp-client libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
 		\
 		#设置网卡 \
 		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_DST}/etc/network/interfaces.d/enp0s3.interface; \
