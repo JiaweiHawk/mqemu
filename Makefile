@@ -14,7 +14,7 @@ MAC_FOR_L1				:= aa:bb:cc:cc:bb:aa
 IP_FOR_L1				:= ${NET_PREFIX}.128
 CONSOLE_PORT_FOR_L1		:= 1234
 GDB_KERNEL_PORT_FOR_L1	:= 1235
-define QEMU_OPTIONS_L1
+define QEMU_OPTIONS_FOR_L1
        -cpu host \
        -smp 4 \
        -m 4G \
@@ -27,7 +27,7 @@ define QEMU_OPTIONS_L1
        -device virtio-9p-pci,fsdev=share,mount_tag=${SHARE_TAG} \
        -enable-kvm \
        -nographic -no-reboot
-endef #define QEMU_OPTIONS_L1
+endef #define QEMU_OPTIONS_FOR_L1
 
 ROOTFS_FOR_L2 			:= rootfs_for_l2
 BRIDGE_L1				:= br_l1
@@ -223,7 +223,7 @@ debug_l1:
 			--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
 			--args \
 				${PWD}/qemu/build/qemu-system-x86_64 \
-				${QEMU_OPTIONS_L1} \
+				${QEMU_OPTIONS_FOR_L1} \
 				-monitor none \
 				-serial telnet::${CONSOLE_PORT_FOR_L1},server,nowait \
 				-gdb tcp::${GDB_KERNEL_PORT_FOR_L1} -S
