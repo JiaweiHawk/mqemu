@@ -32,7 +32,7 @@ endef #define QEMU_OPTIONS_L1
 ROOTFS_FOR_L2 			:= rootfs_for_l2
 BRIDGE_L1				:= br_l1
 TAP_FOR_L2				:= tap_for_l2
-L2_MAC					:= cc:bb:aa:aa:bb:cc
+MAC_FOR_L2				:= cc:bb:aa:aa:bb:cc
 L2_IP					:= ${NET_PREFIX}.129
 define QEMU_OPTIONS_L2
 	-cpu host \
@@ -43,7 +43,7 @@ define QEMU_OPTIONS_L2
 	-append "rdinit=/sbin/init panic=-1 console=ttyS0 nokaslr" \
 	-initrd ${PWD}/${ROOTFS_FOR_L2}.cpio \
 	-netdev tap,id=net,ifname=${TAP_FOR_L2},script=no,downscript=no \
-	-device virtio-net-pci,mac=${L2_MAC},netdev=net \
+	-device virtio-net-pci,mac=${MAC_FOR_L2},netdev=net \
 	-enable-kvm \
 	-nographic -no-reboot
 endef #define QEMU_OPTIONS_L2
@@ -103,7 +103,7 @@ init_env:
 		--dhcp-range=${NET_PREFIX}.2,${NET_PREFIX}.254 \
 		--dhcp-range=${NET_MIGRATE_PREFIX}.2,${NET_MIGRATE_PREFIX}.254 \
 		--dhcp-host=${MAC_FOR_L1},${IP_FOR_L1} \
-		--dhcp-host=${L2_MAC},${L2_IP} \
+		--dhcp-host=${MAC_FOR_L2},${L2_IP} \
 		--dhcp-host=${SRC_MAC},${SRC_IP} \
 		--dhcp-host=${DST_MAC},${DST_IP} \
 		-x ${PWD}/dnsmasq.pid || exit 0
@@ -520,7 +520,7 @@ rootfs_for_l2:
 		echo "#!/bin/sh" | sudo tee ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
 		echo "mount -a" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
 		echo "/sbin/mdev -s" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
-		echo "/sbin/ip link set dev eth0 address ${L2_MAC}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
+		echo "/sbin/ip link set dev eth0 address ${MAC_FOR_L2}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
 		echo "/sbin/syslogd -K" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
 		echo "/sbin/udhcpc -i eth0 -s /usr/share/udhcp/default.script -S" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
 		echo "/usr/sbin/addgroup -S -g 0 root" | sudo tee -a ${PWD}/${ROOTFS_FOR_L2}/etc/init.d/rcS; \
