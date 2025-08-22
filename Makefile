@@ -53,25 +53,25 @@ NET_MIGRATE_PREFIX		:= 172.192.169
 NET_MIGRATE_MASK		:= 24
 
 ROOTFS_FOR_SRC			:= rootfs_for_src
-TAP_SRC					:= tap_src
-SRC_MAC					:= aa:aa:cc:cc:aa:aa
-SRC_IP					:= ${NET_MIGRATE_PREFIX}.130
-CONSOLE_SRC_PORT		:= 1236
-GDB_KERNEL_SRC_PORT		:= 1237
-GDB_QEMU_SRC_PORT  		:= 1234
+TAP_FOR_SRC				:= tap_for_src
+MAC_FOR_SRC				:= aa:aa:cc:cc:aa:aa
+IP_FOR_SRC				:= ${NET_MIGRATE_PREFIX}.130
+CONSOLE_PORT_FOR_SRC	:= 1236
+GDB_KERNEL_PORT_FOR_SRC	:= 1237
+GDB_QEMU_PORT_FOR_SRC  	:= 1234
 
 ROOTFS_FOR_DST			:= rootfs_for_dst
-TAP_DST					:= tap_dst
-DST_MAC					:= cc:aa:aa:aa:aa:cc
-DST_IP					:= ${NET_MIGRATE_PREFIX}.131
-CONSOLE_DST_PORT		:= 1238
-GDB_KERNEL_DST_PORT		:= 1249
-GDB_QEMU_DST_PORT  		:= 1234
+TAP_FOR_DST				:= tap_for_dst
+MAC_FOR_DST				:= cc:aa:aa:aa:aa:cc
+IP_FOR_DST				:= ${NET_MIGRATE_PREFIX}.131
+CONSOLE_PORT_FOR_DST	:= 1238
+GDB_KERNEL_PORT_FOR_DST	:= 1249
+GDB_QEMU_PORT_FOR_DST  	:= 1234
 
 QEMU_MIGRATE_GUEST_PATH := ${PWD}/qemu-system-x86_64
 
 ROOTFS_FOR_MIGRATE_GUEST:= rootfs_for_migrate_guest
-CONSOLE_MIGRATE_GUEST_PORT:= 1235
+CONSOLE_MIGRATE_PORT_FOR_GUEST:= 1235
 
 .PHONY: build kernel libvirt qemu rootfs_for_dst rootfs_for_l1 rootfs_for_l2 rootfs_for_migrate_guest rootfs_for_src submodules \
 		fini_env gdb_libvirtd init_env \
@@ -89,8 +89,8 @@ init_env:
 
 	#创建tap
 	sudo ip tuntap add name ${TAP_FOR_L1} mode tap || exit 0
-	sudo ip tuntap add name ${TAP_SRC} mode tap || exit 0
-	sudo ip tuntap add name ${TAP_DST} mode tap || exit 0
+	sudo ip tuntap add name ${TAP_FOR_SRC} mode tap || exit 0
+	sudo ip tuntap add name ${TAP_FOR_DST} mode tap || exit 0
 
 	#添加子网
 	sudo ip addr add ${NET_PREFIX}.1/${NET_MASK} dev ${TAP_FOR_L1} || exit 0
@@ -104,21 +104,21 @@ init_env:
 		--dhcp-range=${NET_MIGRATE_PREFIX}.2,${NET_MIGRATE_PREFIX}.254 \
 		--dhcp-host=${MAC_FOR_L1},${IP_FOR_L1} \
 		--dhcp-host=${MAC_FOR_L2},${IP_FOR_L2} \
-		--dhcp-host=${SRC_MAC},${SRC_IP} \
-		--dhcp-host=${DST_MAC},${DST_IP} \
+		--dhcp-host=${MAC_FOR_SRC},${IP_FOR_SRC} \
+		--dhcp-host=${MAC_FOR_DST},${IP_FOR_DST} \
 		-x ${PWD}/dnsmasq.pid || exit 0
 
 	#启动tap
 	sudo ip link set dev ${TAP_FOR_L1} up || exit 0
-	sudo ip link set dev ${TAP_SRC} up || exit 0
-	sudo ip link set dev ${TAP_DST} up || exit 0
+	sudo ip link set dev ${TAP_FOR_SRC} up || exit 0
+	sudo ip link set dev ${TAP_FOR_DST} up || exit 0
 
 	#启动bridge
 	sudo ip link set dev ${BRIDGE_MIGRATE} up || exit 0
 
 	#添加tap到bridge
-	sudo ip link set dev ${TAP_SRC} master ${BRIDGE_MIGRATE} || exit 0
-	sudo ip link set dev ${TAP_DST} master ${BRIDGE_MIGRATE} || exit 0
+	sudo ip link set dev ${TAP_FOR_SRC} master ${BRIDGE_MIGRATE} || exit 0
+	sudo ip link set dev ${TAP_FOR_DST} master ${BRIDGE_MIGRATE} || exit 0
 
 	#添加NAT规则
 	sudo iptables -t nat -A POSTROUTING \
@@ -186,23 +186,23 @@ fini_env:
 		-j MASQUERADE || exit 0
 
 	#从bridge删除tap
-	sudo ip link set dev ${TAP_DST} nomaster || exit 0
-	sudo ip link set dev ${TAP_SRC} nomaster || exit 0
+	sudo ip link set dev ${TAP_FOR_DST} nomaster || exit 0
+	sudo ip link set dev ${TAP_FOR_SRC} nomaster || exit 0
 
 	#关闭bridge
 	sudo ip link set dev ${BRIDGE_MIGRATE} down || exit 0
 
 	#关闭tap
-	sudo ip link set dev ${TAP_DST} down || exit 0
-	sudo ip link set dev ${TAP_SRC} down || exit 0
+	sudo ip link set dev ${TAP_FOR_DST} down || exit 0
+	sudo ip link set dev ${TAP_FOR_SRC} down || exit 0
 	sudo ip link set dev ${TAP_FOR_L1} down || exit 0
 
 	#关闭dhcp服务
 	sudo kill -TERM $$(cat ${PWD}/dnsmasq.pid) || exit 0
 
 	#删除tap
-	sudo ip tuntap del ${TAP_DST} mode tap || exit 0
-	sudo ip tuntap del ${TAP_SRC} mode tap || exit 0
+	sudo ip tuntap del ${TAP_FOR_DST} mode tap || exit 0
+	sudo ip tuntap del ${TAP_FOR_SRC} mode tap || exit 0
 	sudo ip tuntap del ${TAP_FOR_L1} mode tap || exit 0
 
 	#删除bridge
@@ -663,12 +663,12 @@ init_migrate:
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/src.xml
 	sed -i "s|{INITRD}|${PWD}/${ROOTFS_FOR_SRC}.cpio|" ${PWD}/src.xml
 	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/src.xml
-	sed -i "s|{TAP}|${TAP_SRC}|" ${PWD}/src.xml
-	sed -i "s|{MACADDRESS}|${SRC_MAC}|" ${PWD}/src.xml
+	sed -i "s|{TAP}|${TAP_FOR_SRC}|" ${PWD}/src.xml
+	sed -i "s|{MACADDRESS}|${MAC_FOR_SRC}|" ${PWD}/src.xml
 	sed -i "s|{SHARE_HOST}|${PWD}|" ${PWD}/src.xml
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/src.xml
-	sed -i "s|{CONSOLE_PORT}|${CONSOLE_SRC_PORT}|" ${PWD}/src.xml
-	sed -i "s|{GDB_PORT}|${GDB_KERNEL_SRC_PORT}|" ${PWD}/src.xml
+	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_SRC}|" ${PWD}/src.xml
+	sed -i "s|{GDB_PORT}|${GDB_KERNEL_PORT_FOR_SRC}|" ${PWD}/src.xml
 	${PWD}/libvirt/build/tools/virsh define ${PWD}/src.xml || exit 0
 	${PWD}/libvirt/build/tools/virsh start src || exit 0
 
@@ -678,12 +678,12 @@ init_migrate:
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/dst.xml
 	sed -i "s|{INITRD}|${PWD}/${ROOTFS_FOR_DST}.cpio|" ${PWD}/dst.xml
 	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/dst.xml
-	sed -i "s|{TAP}|${TAP_DST}|" ${PWD}/dst.xml
-	sed -i "s|{MACADDRESS}|${DST_MAC}|" ${PWD}/dst.xml
+	sed -i "s|{TAP}|${TAP_FOR_DST}|" ${PWD}/dst.xml
+	sed -i "s|{MACADDRESS}|${MAC_FOR_DST}|" ${PWD}/dst.xml
 	sed -i "s|{SHARE_HOST}|${PWD}|" ${PWD}/dst.xml
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/dst.xml
-	sed -i "s|{CONSOLE_PORT}|${CONSOLE_DST_PORT}|" ${PWD}/dst.xml
-	sed -i "s|{GDB_PORT}|${GDB_KERNEL_DST_PORT}|" ${PWD}/dst.xml
+	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_DST}|" ${PWD}/dst.xml
+	sed -i "s|{GDB_PORT}|${GDB_KERNEL_PORT_FOR_DST}|" ${PWD}/dst.xml
 	${PWD}/libvirt/build/tools/virsh define ${PWD}/dst.xml || exit 0
 	${PWD}/libvirt/build/tools/virsh start dst || exit 0
 
@@ -691,7 +691,7 @@ console_src:
 	gnome-terminal \
 		--title "console for src" \
 		-- \
-		telnet localhost ${CONSOLE_SRC_PORT}
+		telnet localhost ${CONSOLE_PORT_FOR_SRC}
 
 ssh_src:
 	gnome-terminal \
@@ -700,13 +700,13 @@ ssh_src:
 		ssh \
 			-o "StrictHostKeyChecking=no" \
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
-			root@${SRC_IP}
+			root@${IP_FOR_SRC}
 
 console_dst:
 	gnome-terminal \
 		--title "console for dst" \
 		-- \
-		telnet localhost ${CONSOLE_DST_PORT}
+		telnet localhost ${CONSOLE_PORT_FOR_DST}
 
 ssh_dst:
 	gnome-terminal \
@@ -715,7 +715,7 @@ ssh_dst:
 		ssh \
 			-o "StrictHostKeyChecking=no" \
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
-			root@${DST_IP}
+			root@${IP_FOR_DST}
 
 fini_migrate:
 	${PWD}/libvirt/build/tools/virsh destroy src || exit 0
@@ -775,13 +775,13 @@ console_src_guest:
 	gnome-terminal \
 		--title "console for src guest" \
 		-- \
-		telnet ${SRC_IP} ${CONSOLE_MIGRATE_GUEST_PORT}
+		telnet ${IP_FOR_SRC} ${CONSOLE_MIGRATE_PORT_FOR_GUEST}
 
 console_dst_guest:
 	gnome-terminal \
 		--title "console for dst guest" \
 		-- \
-		telnet ${DST_IP} ${CONSOLE_MIGRATE_GUEST_PORT}
+		telnet ${IP_FOR_DST} ${CONSOLE_MIGRATE_PORT_FOR_GUEST}
 
 migrate:
 	#设置qemu的gdbserver
@@ -790,7 +790,7 @@ migrate:
 	echo 'if [ "$$guest" = "" ]; then' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
 	echo 'exec ${PWD}/qemu/build/qemu-system-x86_64 "$$@"' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
 	echo 'else' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
-	echo 'exec gdbserver 0.0.0.0:${GDB_QEMU_SRC_PORT} ${PWD}/qemu/build/qemu-system-x86_64 "$$@"' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
+	echo 'exec gdbserver 0.0.0.0:${GDB_QEMU_PORT_FOR_SRC} ${PWD}/qemu/build/qemu-system-x86_64 "$$@"' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
 	echo 'fi' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
 	chmod +x ${QEMU_MIGRATE_GUEST_PATH}
 
@@ -800,7 +800,7 @@ migrate:
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/migrate_guest.xml
 	sed -i "s|{INITRD}|${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}.cpio|" ${PWD}/migrate_guest.xml
 	sed -i "s|{QEMU}|${QEMU_MIGRATE_GUEST_PATH}|" ${PWD}/migrate_guest.xml
-	sed -i "s|{CONSOLE_PORT}|${CONSOLE_MIGRATE_GUEST_PORT}|" ${PWD}/migrate_guest.xml
+	sed -i "s|{CONSOLE_PORT}|${CONSOLE_MIGRATE_PORT_FOR_GUEST}|" ${PWD}/migrate_guest.xml
 
 	#启动src上libvirtd的gdb
 	gnome-terminal \
@@ -810,7 +810,7 @@ migrate:
 			-o "StrictHostKeyChecking no" \
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
-			${USER}@${SRC_IP} \
+			${USER}@${IP_FOR_SRC} \
 			'gdb \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
@@ -825,13 +825,13 @@ migrate:
 			-o "StrictHostKeyChecking no" \
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
-			${USER}@${SRC_IP} \
+			${USER}@${IP_FOR_SRC} \
 			'gdb \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
 				-ex "handle SIGUSR1 noprint" \
 				-ex "set tcp connect-timeout unlimited" \
-				-ex "target remote localhost:${GDB_QEMU_SRC_PORT}" \
+				-ex "target remote localhost:${GDB_QEMU_PORT_FOR_SRC}" \
 				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py"'
 
 	#启动dst上libvirtd的gdb
@@ -842,7 +842,7 @@ migrate:
 			-o "StrictHostKeyChecking no" \
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
-			${USER}@${DST_IP} \
+			${USER}@${IP_FOR_DST} \
 			'gdb \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
@@ -857,25 +857,25 @@ migrate:
 			-o "StrictHostKeyChecking no" \
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
 			-t \
-			${USER}@${DST_IP} \
+			${USER}@${IP_FOR_DST} \
 			'gdb \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
 				-ex "handle SIGUSR1 noprint" \
 				-ex "set tcp connect-timeout unlimited" \
-				-ex "target remote localhost:${GDB_QEMU_DST_PORT}" \
+				-ex "target remote localhost:${GDB_QEMU_PORT_FOR_DST}" \
 				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py"'
 
 	#启动src的guest
-	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${SRC_IP}/session?no_verify=1 destroy migrate_guest || exit 0
-	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${SRC_IP}/session?no_verify=1 undefine migrate_guest || exit 0
-	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${SRC_IP}/session?no_verify=1 define ${PWD}/migrate_guest.xml || exit 0
-	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${SRC_IP}/session?no_verify=1 start migrate_guest || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_SRC}/session?no_verify=1 destroy migrate_guest || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_SRC}/session?no_verify=1 undefine migrate_guest || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_SRC}/session?no_verify=1 define ${PWD}/migrate_guest.xml || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_SRC}/session?no_verify=1 start migrate_guest || exit 0
 
 	#热迁移
-	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${DST_IP}/session?no_verify=1 destroy migrate_guest || exit 0
-	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${DST_IP}/session?no_verify=1 undefine migrate_guest || exit 0
-	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${SRC_IP}/session?no_verify=1 migrate --live migrate_guest qemu+ssh://${USER}@${DST_IP}/session?no_verify=1 || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_DST}/session?no_verify=1 destroy migrate_guest || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_DST}/session?no_verify=1 undefine migrate_guest || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_SRC}/session?no_verify=1 migrate --live migrate_guest qemu+ssh://${USER}@${IP_FOR_DST}/session?no_verify=1 || exit 0
 
 submodules:
 	git submodule \
