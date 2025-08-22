@@ -9,7 +9,7 @@ USER 					:= $(shell whoami)
 SSH_CONNECTION_ATTEMPTS := 5
 
 ROOTFS_FOR_L1 			:= rootfs_for_l1
-TAP_L0					:= tap0
+TAP_FOR_L1				:= tap_for_l1
 MAC_FOR_L1				:= aa:bb:cc:cc:bb:aa
 IP_FOR_L1				:= ${NET_PREFIX}.128
 CONSOLE_PORT_FOR_L1		:= 1234
@@ -21,7 +21,7 @@ define QEMU_OPTIONS_L1
        -kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
        -append "rdinit=/sbin/init panic=-1 console=ttyS0 nokaslr" \
        -initrd ${PWD}/${ROOTFS_FOR_L1}.cpio \
-       -netdev tap,id=net,ifname=${TAP_L0},script=no,downscript=no \
+       -netdev tap,id=net,ifname=${TAP_FOR_L1},script=no,downscript=no \
        -device virtio-net-pci,netdev=net \
        -fsdev local,id=share,path=${PWD},security_model=none \
        -device virtio-9p-pci,fsdev=share,mount_tag=${SHARE_TAG} \
@@ -88,17 +88,17 @@ init_env:
 	sudo ip link add ${BRIDGE_MIGRATE} type bridge || exit 0
 
 	#创建tap
-	sudo ip tuntap add name ${TAP_L0} mode tap || exit 0
+	sudo ip tuntap add name ${TAP_FOR_L1} mode tap || exit 0
 	sudo ip tuntap add name ${TAP_SRC} mode tap || exit 0
 	sudo ip tuntap add name ${TAP_DST} mode tap || exit 0
 
 	#添加子网
-	sudo ip addr add ${NET_PREFIX}.1/${NET_MASK} dev ${TAP_L0} || exit 0
+	sudo ip addr add ${NET_PREFIX}.1/${NET_MASK} dev ${TAP_FOR_L1} || exit 0
 	sudo ip addr add ${NET_MIGRATE_PREFIX}.1/${NET_MIGRATE_MASK} dev ${BRIDGE_MIGRATE} || exit 0
 
 	#启动dhcp服务
 	sudo dnsmasq \
-		--interface=${TAP_L0},${BRIDGE_MIGRATE} \
+		--interface=${TAP_FOR_L1},${BRIDGE_MIGRATE} \
 		--bind-interfaces \
 		--dhcp-range=${NET_PREFIX}.2,${NET_PREFIX}.254 \
 		--dhcp-range=${NET_MIGRATE_PREFIX}.2,${NET_MIGRATE_PREFIX}.254 \
@@ -109,7 +109,7 @@ init_env:
 		-x ${PWD}/dnsmasq.pid || exit 0
 
 	#启动tap
-	sudo ip link set dev ${TAP_L0} up || exit 0
+	sudo ip link set dev ${TAP_FOR_L1} up || exit 0
 	sudo ip link set dev ${TAP_SRC} up || exit 0
 	sudo ip link set dev ${TAP_DST} up || exit 0
 
@@ -132,12 +132,12 @@ init_env:
 
 	#添加FORWARD规则
 	sudo iptables -I FORWARD \
-		-i ${TAP_L0} \
+		-i ${TAP_FOR_L1} \
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-j ACCEPT || exit 0
 	sudo iptables -I FORWARD \
 		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-o ${TAP_L0} \
+		-o ${TAP_FOR_L1} \
 		-j ACCEPT || exit 0
 	sudo iptables -I FORWARD \
 		-i ${BRIDGE_MIGRATE} \
@@ -168,10 +168,10 @@ fini_env:
 		-j ACCEPT || exit 0
 	sudo iptables -D FORWARD \
 		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-o ${TAP_L0} \
+		-o ${TAP_FOR_L1} \
 		-j ACCEPT || exit 0
 	sudo iptables -D FORWARD \
-		-i ${TAP_L0} \
+		-i ${TAP_FOR_L1} \
 		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
 		-j ACCEPT || exit 0
 
@@ -195,7 +195,7 @@ fini_env:
 	#关闭tap
 	sudo ip link set dev ${TAP_DST} down || exit 0
 	sudo ip link set dev ${TAP_SRC} down || exit 0
-	sudo ip link set dev ${TAP_L0} down || exit 0
+	sudo ip link set dev ${TAP_FOR_L1} down || exit 0
 
 	#关闭dhcp服务
 	sudo kill -TERM $$(cat ${PWD}/dnsmasq.pid) || exit 0
@@ -203,7 +203,7 @@ fini_env:
 	#删除tap
 	sudo ip tuntap del ${TAP_DST} mode tap || exit 0
 	sudo ip tuntap del ${TAP_SRC} mode tap || exit 0
-	sudo ip tuntap del ${TAP_L0} mode tap || exit 0
+	sudo ip tuntap del ${TAP_FOR_L1} mode tap || exit 0
 
 	#删除bridge
 	sudo ip link del name ${BRIDGE_MIGRATE} type bridge || exit 0
@@ -248,7 +248,7 @@ init_l1:
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/l1.xml
 	sed -i "s|{INITRD}|${PWD}/${ROOTFS_FOR_L1}.cpio|" ${PWD}/l1.xml
 	sed -i "s|{QEMU}|${PWD}/qemu/build/qemu-system-x86_64|" ${PWD}/l1.xml
-	sed -i "s|{TAP}|${TAP_L0}|" ${PWD}/l1.xml
+	sed -i "s|{TAP}|${TAP_FOR_L1}|" ${PWD}/l1.xml
 	sed -i "s|{SHARE_HOST}|${PWD}|" ${PWD}/l1.xml
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/l1.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_L1}|" ${PWD}/l1.xml
