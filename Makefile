@@ -33,7 +33,7 @@ ROOTFS_FOR_L2 			:= rootfs_for_l2
 BRIDGE_L1				:= br_l1
 TAP_FOR_L2				:= tap_for_l2
 MAC_FOR_L2				:= cc:bb:aa:aa:bb:cc
-L2_IP					:= ${NET_PREFIX}.129
+IP_FOR_L2				:= ${NET_PREFIX}.129
 define QEMU_OPTIONS_L2
 	-cpu host \
 	-smp 2 \
@@ -103,7 +103,7 @@ init_env:
 		--dhcp-range=${NET_PREFIX}.2,${NET_PREFIX}.254 \
 		--dhcp-range=${NET_MIGRATE_PREFIX}.2,${NET_MIGRATE_PREFIX}.254 \
 		--dhcp-host=${MAC_FOR_L1},${IP_FOR_L1} \
-		--dhcp-host=${MAC_FOR_L2},${L2_IP} \
+		--dhcp-host=${MAC_FOR_L2},${IP_FOR_L2} \
 		--dhcp-host=${SRC_MAC},${SRC_IP} \
 		--dhcp-host=${DST_MAC},${DST_IP} \
 		-x ${PWD}/dnsmasq.pid || exit 0
@@ -316,7 +316,7 @@ ssh_l2:
 		ssh \
 			-o "StrictHostKeyChecking=no" \
 			-o "ConnectionAttempts=${SSH_CONNECTION_ATTEMPTS}" \
-			root@${L2_IP}
+			root@${IP_FOR_L2}
 
 build: kernel libvirt qemu rootfs_for_dst rootfs_for_l1 rootfs_for_l2 rootfs_for_migrate_guest rootfs_for_src
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
