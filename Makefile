@@ -34,7 +34,7 @@ BRIDGE_L1				:= br_l1
 TAP_FOR_L2				:= tap_for_l2
 MAC_FOR_L2				:= cc:bb:aa:aa:bb:cc
 IP_FOR_L2				:= ${NET_PREFIX}.129
-define QEMU_OPTIONS_L2
+define QEMU_OPTIONS_FOR_L2
 	-cpu host \
 	-smp 2 \
 	-m 2G \
@@ -46,7 +46,7 @@ define QEMU_OPTIONS_L2
 	-device virtio-net-pci,mac=${MAC_FOR_L2},netdev=net \
 	-enable-kvm \
 	-nographic -no-reboot
-endef #define QEMU_OPTIONS_L2
+endef #define QEMU_OPTIONS_FOR_L2
 
 BRIDGE_MIGRATE 			:= br_migrate
 NET_MIGRATE_PREFIX		:= 172.192.169
@@ -262,7 +262,7 @@ fini_l1:
 
 run_l2:
 	${PWD}/qemu/build/qemu-system-x86_64 \
-		${QEMU_OPTIONS_L2}
+		${QEMU_OPTIONS_FOR_L2}
 
 gdb_kernel_l1:
 	gnome-terminal \
