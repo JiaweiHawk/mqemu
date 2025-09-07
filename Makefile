@@ -325,7 +325,8 @@ kernel:
 	if [ ! -f "${PWD}/kernel/vmlinux" ]; then \
 		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
-		sudo apt build-dep -y linux; \
+		sudo apt build-dep -y linux && \
+		sudo apt install -y bear; \
 		\
 		make \
 			-C ${PWD}/kernel \
@@ -360,7 +361,7 @@ libvirt:
 		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
 		sudo apt build-dep -y libvirt && \
-		sudo apt install -y libjson-c-dev; \
+		sudo apt install -y bear libjson-c-dev; \
 		\
 		meson setup ${PWD}/libvirt/build ${PWD}/libvirt; \
 		meson configure ${PWD}/libvirt/build --auto-features disabled -Ddriver_remote=enabled -Ddriver_libvirtd=enabled -Ddriver_qemu=enabled -Djson_c=enabled; \
@@ -379,7 +380,7 @@ qemu:
 		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
 		sudo apt build-dep -y qemu && \
-		sudo apt install -y python3-pip; \
+		sudo apt install -y bear python3-pip; \
 		\
 		cd ${PWD}/qemu && \
 		./configure \
