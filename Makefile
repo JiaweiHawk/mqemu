@@ -153,7 +153,7 @@ init_env:
 
 	@echo -e '\033[0;32m[*]\033[0minit the environment'
 
-fini_env:
+fini_env: fini_l1 fini_migrate
 	#结束libvirtd
 	kill -s TERM $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid) || exit 0
 
