@@ -74,7 +74,7 @@ ROOTFS_FOR_MIGRATE_GUEST:= rootfs_for_migrate_guest
 CONSOLE_MIGRATE_PORT_FOR_GUEST:= 1235
 
 .PHONY: build kernel libvirt qemu rootfs_for_dst rootfs_for_l1 rootfs_for_l2 rootfs_for_migrate_guest rootfs_for_src submodules \
-		fini_env gdb_libvirtd init_env \
+		debug_libvirt fini_env gdb_libvirtd init_env \
 		console_l1 debug_l1 fini_l1 gdb_kernel_l1 gdb_qemu_l1 init_l1 ssh_l1 \
 		run_l2 ssh_l2 \
 		console_src console_dst fini_migrate init_migrate ssh_src ssh_dst \
@@ -274,6 +274,15 @@ gdb_kernel_l1:
 			--eval-command="set tcp connect-timeout unlimited" \
 			--eval-command="target remote localhost:${GDB_KERNEL_PORT_FOR_L1}" \
 			${PWD}/kernel/vmlinux
+
+debug_libvirt:
+	gnome-terminal \
+		--title "gdb for libvirt" \
+		-- \
+		gdb \
+			-iex "set confirm on" \
+			-ex "set follow-fork-mode parent" \
+			--args ${PWD}/libvirt/build/src/libvirtd
 
 gdb_libvirtd:
 	gnome-terminal \
