@@ -422,14 +422,14 @@ rootfs_for_l1:
 		\
 		sudo debootstrap \
 			--components=main,contrib,non-free,non-free-firmware \
+			--include=bash-completion,gdb,git,isc-dhcp-client,libfdt-dev,libglib2.0-dev,libpixman-1-dev,locales,make,openssh-server,pciutils,strace,wget \
 			stable \
 			${PWD}/${ROOTFS_FOR_L1} \
 			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
 		\
-		sudo chroot \
-			${PWD}/${ROOTFS_FOR_L1} \
-			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdb git isc-dhcp-client libfdt-dev libglib2.0-dev libpixman-1-dev make openssh-server pciutils strace wget"; \
+		#设置locales \
+		sudo sed -i 's|# \(en_US.UTF-8 UTF-8\)|\1|' ${PWD}/${ROOTFS_FOR_L1}/etc/locale.gen; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_L1} /bin/bash -c "locale-gen"; \
 		\
 		#设置网卡 \
 		echo "iface enp0s3 inet manual" | sudo tee ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/enp0s3.interface; \
@@ -562,14 +562,14 @@ rootfs_for_src:
 		\
 		sudo debootstrap \
 			--components=main,contrib,non-free,non-free-firmware \
+			--include=bash-completion,gdb,gdbserver,isc-dhcp-client,libfdt1,libglib2.0-dev,libpixman-1-0,libxml2,locales,make,netcat-openbsd,openssh-server \
 			stable \
 			${PWD}/${ROOTFS_FOR_SRC} \
 			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
 		\
-		sudo chroot \
-			${PWD}/${ROOTFS_FOR_SRC} \
-			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdb gdbserver isc-dhcp-client libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
+		#设置locales \
+		sudo sed -i 's|# \(en_US.UTF-8 UTF-8\)|\1|' ${PWD}/${ROOTFS_FOR_SRC}/etc/locale.gen; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_SRC} /bin/bash -c "locale-gen"; \
 		\
 		#设置网卡 \
 		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_FOR_SRC}/etc/network/interfaces.d/enp0s3.interface; \
@@ -620,14 +620,14 @@ rootfs_for_dst:
 		\
 		sudo debootstrap \
 			--components=main,contrib,non-free,non-free-firmware \
+			--include=bash-completion,gdb,gdbserver,isc-dhcp-client,libfdt1,libglib2.0-dev,libpixman-1-0,libxml2,locales,make,netcat-openbsd,openssh-server \
 			stable \
 			${PWD}/${ROOTFS_FOR_DST} \
 			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
 		\
-		sudo chroot \
-			${PWD}/${ROOTFS_FOR_DST} \
-			/bin/bash \
-				-c "apt update && apt install -y bash-completion gdb gdbserver isc-dhcp-client libfdt1 libglib2.0-0 libpixman-1-0 make netcat-openbsd openssh-server"; \
+		#设置locales \
+		sudo sed -i 's|# \(en_US.UTF-8 UTF-8\)|\1|' ${PWD}/${ROOTFS_FOR_DST}/etc/locale.gen; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_DST} /bin/bash -c "locale-gen"; \
 		\
 		#设置网卡 \
 		echo "auto enp0s3" | sudo tee ${PWD}/${ROOTFS_FOR_DST}/etc/network/interfaces.d/enp0s3.interface; \
@@ -829,7 +829,7 @@ migrate:
 				-iex "set confirm on" \
 				-iex "set pagination off" \
 				-ex "set follow-fork-mode parent" \
-				-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)'
+				-p $$(cat /home/${USER}/.cache/libvirt/libvirtd.pid)'
 
 	#启动src上qemu的gdb
 	gnome-terminal \
@@ -861,7 +861,7 @@ migrate:
 				-iex "set confirm on" \
 				-iex "set pagination off" \
 				-ex "set follow-fork-mode parent" \
-				-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)'
+				-p $$(cat /home/${USER}/.cache/libvirt/libvirtd.pid)'
 
 	#启动dst上qemu的gdb
 	gnome-terminal \
