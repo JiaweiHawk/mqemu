@@ -331,6 +331,10 @@ build: kernel libvirt qemu rootfs_for_dst rootfs_for_l1 rootfs_for_l2 rootfs_for
 	@echo -e '\033[0;32m[*]\033[0mbuild the mqemu environment'
 
 kernel:
+	if [ $(shell lsmod | grep "^kvm_" | wc -l) -eq 0 ]; then \
+		echo "Error: No KVM modules are loaded" && exit 1; \
+	fi
+
 	if [ ! -f "${PWD}/kernel/vmlinux" ]; then \
 		sudo sed -i -E 's|# (deb-src)|\1|g' /etc/apt/sources.list && \
 		sudo apt update && \
