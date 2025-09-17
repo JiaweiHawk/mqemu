@@ -425,7 +425,7 @@ rootfs_for_l1:
 			--include=bash-completion,gdb,git,isc-dhcp-client,libfdt-dev,libglib2.0-dev,libpixman-1-dev,locales,make,openssh-server,pciutils,strace,wget \
 			stable \
 			${PWD}/${ROOTFS_FOR_L1} \
-			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
+			https://mirrors.cloud.tencent.com/debian/; \
 		\
 		#设置locales \
 		sudo sed -i 's|# \(en_US.UTF-8 UTF-8\)|\1|' ${PWD}/${ROOTFS_FOR_L1}/etc/locale.gen; \
@@ -565,7 +565,7 @@ rootfs_for_src:
 			--include=bash-completion,gdb,gdbserver,isc-dhcp-client,libfdt1,libglib2.0-dev,libpixman-1-0,libxml2,locales,make,netcat-openbsd,openssh-server \
 			stable \
 			${PWD}/${ROOTFS_FOR_SRC} \
-			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
+			https://mirrors.cloud.tencent.com/debian/; \
 		\
 		#设置locales \
 		sudo sed -i 's|# \(en_US.UTF-8 UTF-8\)|\1|' ${PWD}/${ROOTFS_FOR_SRC}/etc/locale.gen; \
@@ -623,7 +623,7 @@ rootfs_for_dst:
 			--include=bash-completion,gdb,gdbserver,isc-dhcp-client,libfdt1,libglib2.0-dev,libpixman-1-0,libxml2,locales,make,netcat-openbsd,openssh-server \
 			stable \
 			${PWD}/${ROOTFS_FOR_DST} \
-			https://mirrors.tuna.tsinghua.edu.cn/debian/; \
+			https://mirrors.cloud.tencent.com/debian/; \
 		\
 		#设置locales \
 		sudo sed -i 's|# \(en_US.UTF-8 UTF-8\)|\1|' ${PWD}/${ROOTFS_FOR_DST}/etc/locale.gen; \
