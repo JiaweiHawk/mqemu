@@ -752,7 +752,7 @@ rootfs_for_migrate_guest:
 			${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/init.d \
 			${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/home/root \
 			${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/proc \
-			${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/sys \
+			${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/sys; \
 		\
 		touch ${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/passwd \
 			${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}/etc/group; \
