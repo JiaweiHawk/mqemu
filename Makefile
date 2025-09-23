@@ -80,7 +80,7 @@ CONSOLE_MIGRATE_PORT_FOR_GUEST:= 1235
 		console_src console_dst fini_migrate init_migrate ssh_src ssh_dst \
 		console_src_guest console_dst_guest migrate
 
-init_env:
+init_env: fini_env
 	#开启ip转发
 	sudo sysctl -w net.ipv4.ip_forward=1 || exit 0
 
