@@ -670,7 +670,7 @@ rootfs_for_dst:
 
 	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs for dst'
 
-init_migrate:
+init_migrate: fini_migrate
 	${PWD}/libvirt/build/tools/virsh undefine src || exit 0
 	cp ${PWD}/migrate.example.xml ${PWD}/src.xml
 	sed -i "s|{NAME}|src|" ${PWD}/src.xml
