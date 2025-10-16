@@ -8,6 +8,7 @@ SHARE_TAG 				:= share9p
 USER 					:= $(shell whoami)
 SSH_CONNECTION_ATTEMPTS := 5
 DEBOOTSTRAP_MIRROR		:= https://mirrors.tuna.tsinghua.edu.cn/debian/
+LIBVIRTD_RUNTIME_DIR 	:= ${PWD}/runtime
 
 ROOTFS_FOR_L1 			:= rootfs_for_l1
 TAP_FOR_L1				:= tap_for_l1
@@ -150,13 +151,14 @@ init_env: fini_env
 		-j ACCEPT || exit 0
 
 	#启动libvirtd
-	${PWD}/libvirt/build/src/libvirtd -d || exit 0
+	mkdir -p ${LIBVIRTD_RUNTIME_DIR} || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/src/libvirtd -d || exit 0
 
 	@echo -e '\033[0;32m[*]\033[0minit the environment'
 
 fini_env: fini_l1 fini_migrate
 	#结束libvirtd
-	kill -s TERM $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid) || exit 0
+	kill -s TERM $$(cat ${LIBVIRTD_RUNTIME_DIR}/libvirt/libvirtd.pid) || exit 0
 
 	#删除FORWARD规则
 	sudo iptables -D FORWARD \
@@ -242,7 +244,7 @@ debug_l1:
 			${PWD}/kernel/vmlinux
 
 init_l1:
-	${PWD}/libvirt/build/tools/virsh undefine l1 || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh undefine l1 || exit 0
 
 	cp ${PWD}/l1.example.xml ${PWD}/l1.xml
 	sed -i "s|{NAME}|l1|" ${PWD}/l1.xml
@@ -254,12 +256,12 @@ init_l1:
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/l1.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_L1}|" ${PWD}/l1.xml
 	sed -i "s|{GDB_PORT}|${GDB_KERNEL_PORT_FOR_L1}|" ${PWD}/l1.xml
-	${PWD}/libvirt/build/tools/virsh define ${PWD}/l1.xml || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh define ${PWD}/l1.xml || exit 0
 
-	${PWD}/libvirt/build/tools/virsh start l1 || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh start l1 || exit 0
 
 fini_l1:
-	${PWD}/libvirt/build/tools/virsh destroy l1 || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh destroy l1 || exit 0
 
 run_l2:
 	${PWD}/qemu/build/qemu-system-x86_64 \
@@ -283,6 +285,7 @@ debug_libvirt:
 		gdb \
 			-iex "set confirm on" \
 			-ex "set follow-fork-mode parent" \
+			-ex "set environment XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR}" \
 			--args ${PWD}/libvirt/build/src/libvirtd
 
 gdb_libvirtd:
@@ -292,7 +295,7 @@ gdb_libvirtd:
 		gdb \
 			-iex "set confirm on" \
 			-ex "set follow-fork-mode parent" \
-			-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
+			-p $$(cat ${LIBVIRTD_RUNTIME_DIR}/libvirt/libvirtd.pid)
 
 gdb_qemu_l1:
 	gnome-terminal \
@@ -672,7 +675,7 @@ rootfs_for_dst:
 	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs for dst'
 
 init_migrate: fini_migrate
-	${PWD}/libvirt/build/tools/virsh undefine src || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh undefine src || exit 0
 	cp ${PWD}/migrate.example.xml ${PWD}/src.xml
 	sed -i "s|{NAME}|src|" ${PWD}/src.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/src.xml
@@ -684,10 +687,10 @@ init_migrate: fini_migrate
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/src.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_SRC}|" ${PWD}/src.xml
 	sed -i "s|{GDB_PORT}|${GDB_KERNEL_PORT_FOR_SRC}|" ${PWD}/src.xml
-	${PWD}/libvirt/build/tools/virsh define ${PWD}/src.xml || exit 0
-	${PWD}/libvirt/build/tools/virsh start src || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh define ${PWD}/src.xml || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh start src || exit 0
 
-	${PWD}/libvirt/build/tools/virsh undefine dst || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh undefine dst || exit 0
 	cp ${PWD}/migrate.example.xml ${PWD}/dst.xml
 	sed -i "s|{NAME}|dst|" ${PWD}/dst.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/dst.xml
@@ -699,8 +702,8 @@ init_migrate: fini_migrate
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/dst.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_DST}|" ${PWD}/dst.xml
 	sed -i "s|{GDB_PORT}|${GDB_KERNEL_PORT_FOR_DST}|" ${PWD}/dst.xml
-	${PWD}/libvirt/build/tools/virsh define ${PWD}/dst.xml || exit 0
-	${PWD}/libvirt/build/tools/virsh start dst || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh define ${PWD}/dst.xml || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh start dst || exit 0
 
 console_src:
 	gnome-terminal \
@@ -733,11 +736,11 @@ ssh_dst:
 			root@${IP_FOR_DST}
 
 fini_migrate:
-	${PWD}/libvirt/build/tools/virsh destroy src || exit 0
-	${PWD}/libvirt/build/tools/virsh undefine src || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh destroy src || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh undefine src || exit 0
 
-	${PWD}/libvirt/build/tools/virsh destroy dst || exit 0
-	${PWD}/libvirt/build/tools/virsh undefine dst || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh destroy dst || exit 0
+	XDG_RUNTIME_DIR=${LIBVIRTD_RUNTIME_DIR} ${PWD}/libvirt/build/tools/virsh undefine dst || exit 0
 
 rootfs_for_migrate_guest:
 	if [ ! -d ${PWD}/${BUSYBOX} ]; then \

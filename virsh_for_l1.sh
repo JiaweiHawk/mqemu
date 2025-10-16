@@ -1,3 +1,3 @@
 #!/bin/sh
 
-${PWD}/libvirt/build/tools/virsh $@
+XDG_RUNTIME_DIR=${PWD}/runtime ${PWD}/libvirt/build/tools/virsh $@
