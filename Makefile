@@ -7,6 +7,7 @@ DROPBEAR				:= dropbear-2024.85
 SHARE_TAG 				:= share9p
 USER 					:= $(shell whoami)
 SSH_CONNECTION_ATTEMPTS := 5
+DEBOOTSTRAP_MIRROR		:= https://mirrors.tuna.tsinghua.edu.cn/debian/
 
 ROOTFS_FOR_L1 			:= rootfs_for_l1
 TAP_FOR_L1				:= tap_for_l1
@@ -425,7 +426,7 @@ rootfs_for_l1:
 			--include=bash-completion,gdb,git,isc-dhcp-client,libfdt-dev,libglib2.0-dev,libpixman-1-dev,locales,make,openssh-server,pciutils,strace,wget \
 			stable \
 			${PWD}/${ROOTFS_FOR_L1} \
-			http://mirrors.aliyun.com/debian/; \
+			${DEBOOTSTRAP_MIRROR}; \
 		\
 		#设置locales \
 		sudo sed -i 's|# \(en_US.UTF-8 UTF-8\)|\1|' ${PWD}/${ROOTFS_FOR_L1}/etc/locale.gen; \
@@ -565,7 +566,7 @@ rootfs_for_src:
 			--include=bash-completion,gdb,gdbserver,isc-dhcp-client,libfdt1,libglib2.0-dev,libpixman-1-0,libxml2,locales,make,netcat-openbsd,openssh-server \
 			stable \
 			${PWD}/${ROOTFS_FOR_SRC} \
-			http://mirrors.aliyun.com/debian/; \
+			${DEBOOTSTRAP_MIRROR}; \
 		\
 		#设置locales \
 		sudo sed -i 's|# \(en_US.UTF-8 UTF-8\)|\1|' ${PWD}/${ROOTFS_FOR_SRC}/etc/locale.gen; \
@@ -623,7 +624,7 @@ rootfs_for_dst:
 			--include=bash-completion,gdb,gdbserver,isc-dhcp-client,libfdt1,libglib2.0-dev,libpixman-1-0,libxml2,locales,make,netcat-openbsd,openssh-server \
 			stable \
 			${PWD}/${ROOTFS_FOR_DST} \
-			http://mirrors.aliyun.com/debian/; \
+			${DEBOOTSTRAP_MIRROR}; \
 		\
 		#设置locales \
 		sudo sed -i 's|# \(en_US.UTF-8 UTF-8\)|\1|' ${PWD}/${ROOTFS_FOR_DST}/etc/locale.gen; \
