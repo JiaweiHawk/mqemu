@@ -432,9 +432,9 @@ rootfs_for_l1:
 		sudo chroot ${PWD}/${ROOTFS_FOR_L1} /bin/bash -c "locale-gen"; \
 		\
 		#设置网卡 \
-		echo "iface enp0s3 inet manual" | sudo tee ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "up ip link set dev enp0s3 up" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/enp0s3.interface; \
-		echo "down ip link set dev enp0s3 down" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/enp0s3.interface; \
+		echo "iface enp2s0 inet manual" | sudo tee ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/enp2s0.interface; \
+		echo "up ip link set dev enp2s0 up" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/enp2s0.interface; \
+		echo "down ip link set dev enp2s0 down" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/enp2s0.interface; \
 		\
 		#设置tap \
 		echo "iface ${TAP_FOR_L2} inet manual" | sudo tee ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${TAP_FOR_L2}.interface; \
@@ -448,8 +448,8 @@ rootfs_for_l1:
 		echo "iface ${BRIDGE_L1} inet manual" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "pre-up ip link add name ${BRIDGE_L1} type bridge" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "pre-up ip link set dev ${BRIDGE_L1} address ${MAC_FOR_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "up ifup enp0s3" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "up ip link set dev enp0s3 master ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ifup enp2s0" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "up ip link set dev enp2s0 master ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "up ifup ${TAP_FOR_L2}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "up ip link set dev ${TAP_FOR_L2} master ${BRIDGE_L1}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "up ip link set dev ${BRIDGE_L1} up" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
@@ -458,8 +458,8 @@ rootfs_for_l1:
 		echo "down ip link set dev ${BRIDGE_L1} down" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "down ip link set dev ${TAP_FOR_L2} nomaster" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "down ifdown ${TAP_FOR_L2}" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "down ip link set dev enp0s3 nomaster" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
-		echo "down ifdown enp0s3" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ip link set dev enp2s0 nomaster" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
+		echo "down ifdown enp2s0" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "post-down ip link del ${BRIDGE_L1} type bridge" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		\
 		#开启ip转发 \
