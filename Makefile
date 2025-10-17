@@ -242,7 +242,7 @@ debug_l1:
 			--eval-command="continue" \
 			${PWD}/kernel/vmlinux
 
-init_l1:
+init_l1: fini_l1
 	${PWD}/libvirt/build/tools/virsh undefine l1 || exit 0
 
 	cp ${PWD}/l1.example.xml ${PWD}/l1.xml
