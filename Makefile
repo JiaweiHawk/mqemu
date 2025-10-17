@@ -466,9 +466,6 @@ rootfs_for_l1:
 		echo "down ifdown enp2s0" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		echo "post-down ip link del ${BRIDGE_L1} type bridge" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/network/interfaces.d/${BRIDGE_L1}.interface; \
 		\
-		#开启ip转发 \
-		sudo sed -i "s|^#net.ipv4.ip_forward=1|net.ipv4.ip_forward=1|" ${PWD}/${ROOTFS_FOR_L1}/etc/sysctl.conf; \
-		\
 		#设置ssh服务器 \
 		sudo sed -i "s|^#PermitEmptyPasswords no|PermitEmptyPasswords yes|" ${PWD}/${ROOTFS_FOR_L1}/etc/ssh/sshd_config; \
 		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_FOR_L1}/etc/ssh/sshd_config; \
