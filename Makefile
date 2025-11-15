@@ -888,7 +888,7 @@ migrate:
 	#热迁移
 	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_DST}/session?no_verify=1 destroy migrate_guest || exit 0
 	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_DST}/session?no_verify=1 undefine migrate_guest || exit 0
-	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_SRC}/session?no_verify=1 migrate --live migrate_guest qemu+ssh://${USER}@${IP_FOR_DST}/session?no_verify=1 || exit 0
+	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_SRC}/session?no_verify=1 migrate --domain migrate_guest --desturi qemu+ssh://${USER}@${IP_FOR_DST}/session?no_verify=1 --live --migrateuri tcp://${IP_FOR_DST} --parallel || exit 0
 
 submodules:
 	git submodule \
