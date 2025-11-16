@@ -221,6 +221,7 @@ debug_l1:
 		-- \
 		gdb \
 			-iex "set confirm on" \
+			-iex "set pagination off" \
 			-ex "handle SIGUSR1 noprint" \
 			--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
 			--args \
@@ -235,6 +236,7 @@ debug_l1:
 		-- \
 		gdb \
 			-iex "set confirm on" \
+			-iex "set pagination off" \
 			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
 			--eval-command="set tcp connect-timeout unlimited" \
 			--eval-command="target remote localhost:${GDB_KERNEL_PORT_FOR_L1}" \
@@ -274,6 +276,7 @@ gdb_kernel_l1:
 		-- \
 		gdb \
 			-iex "set confirm on" \
+			-iex "set pagination off" \
 			-iex "env used_for_fini_l1_pgrep=1" \
 			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
 			--eval-command="set tcp connect-timeout unlimited" \
@@ -295,6 +298,7 @@ gdb_libvirtd:
 		-- \
 		gdb \
 			-iex "set confirm on" \
+			-iex "set pagination off" \
 			-iex "env used_for_fini_l1_pgrep=1" \
 			-ex "set follow-fork-mode parent" \
 			-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
@@ -305,6 +309,7 @@ gdb_qemu_l1:
 		-- \
 		gdb \
 			-iex "set confirm on" \
+			-iex "set pagination off" \
 			-iex "env used_for_fini_l1_pgrep=1" \
 			-ex "handle SIGUSR1 noprint" \
 			--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
