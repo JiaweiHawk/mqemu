@@ -159,6 +159,8 @@ fini_env: fini_l1 fini_migrate
 	kill -s TERM $$(cat $$XDG_RUNTIME_DIR/libvirt/virtqemud.pid) || exit 0
 	kill -s TERM $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid) || exit 0
 
+	pgrep -f "env used_for_fini_env_pgrep=1" | grep -v $$$$ | xargs kill -9 || exit 0
+
 	#删除FORWARD规则
 	sudo iptables -D FORWARD \
 		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
@@ -299,7 +301,7 @@ gdb_libvirtd:
 		gdb \
 			-iex "set confirm on" \
 			-iex "set pagination off" \
-			-iex "env used_for_fini_l1_pgrep=1" \
+			-iex "env used_for_fini_env=1" \
 			-ex "set follow-fork-mode parent" \
 			-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
 
