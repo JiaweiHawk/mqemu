@@ -262,6 +262,8 @@ init_l1: fini_l1
 fini_l1:
 	${PWD}/libvirt/build/tools/virsh destroy l1 || exit 0
 
+	pgrep -f "env used_for_fini_l1_pgrep=1" | grep -v $$$$ | xargs kill -9 || exit 0
+
 run_l2:
 	${PWD}/qemu/build/qemu-system-x86_64 \
 		${QEMU_OPTIONS_FOR_L2}
@@ -272,6 +274,7 @@ gdb_kernel_l1:
 		-- \
 		gdb \
 			-iex "set confirm on" \
+			-iex "env used_for_fini_l1_pgrep=1" \
 			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
 			--eval-command="set tcp connect-timeout unlimited" \
 			--eval-command="target remote localhost:${GDB_KERNEL_PORT_FOR_L1}" \
@@ -292,6 +295,7 @@ gdb_libvirtd:
 		-- \
 		gdb \
 			-iex "set confirm on" \
+			-iex "env used_for_fini_l1_pgrep=1" \
 			-ex "set follow-fork-mode parent" \
 			-p $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid)
 
@@ -301,6 +305,7 @@ gdb_qemu_l1:
 		-- \
 		gdb \
 			-iex "set confirm on" \
+			-iex "env used_for_fini_l1_pgrep=1" \
 			-ex "handle SIGUSR1 noprint" \
 			--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py" \
 			-p $$(cat $$XDG_RUNTIME_DIR/libvirt/qemu/run/l1.pid)
@@ -737,6 +742,8 @@ fini_migrate:
 	${PWD}/libvirt/build/tools/virsh destroy dst || exit 0
 	${PWD}/libvirt/build/tools/virsh undefine dst || exit 0
 
+	pgrep -f "env used_for_fini_migrate_pgrep=1" | grep -v $$$$ | xargs kill -9 || exit 0
+
 rootfs_for_migrate_guest:
 	if [ ! -d ${PWD}/${BUSYBOX} ]; then \
 		wget https://busybox.net/downloads/${BUSYBOX}.tar.bz2; \
@@ -825,6 +832,7 @@ migrate:
 			-t \
 			${USER}@${IP_FOR_SRC} \
 			'gdb \
+				-iex "env used_for_fini_migrate_pgrep=1" \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
 				-ex "set follow-fork-mode parent" \
@@ -842,6 +850,7 @@ migrate:
 			'gdb \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
+				-iex "env used_for_fini_migrate_pgrep=1" \
 				-ex "handle SIGUSR1 noprint" \
 				-ex "set tcp connect-timeout unlimited" \
 				-ex "target remote localhost:${GDB_QEMU_PORT_FOR_SRC}" \
@@ -859,6 +868,7 @@ migrate:
 			'gdb \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
+				-iex "env used_for_fini_migrate_pgrep=1" \
 				-ex "set follow-fork-mode parent" \
 				-p $$(cat /home/${USER}/.cache/libvirt/libvirtd.pid)'
 
@@ -874,6 +884,7 @@ migrate:
 			'gdb \
 				-iex "set confirm on" \
 				-iex "set pagination off" \
+				-iex "env used_for_fini_migrate_pgrep=1" \
 				-ex "handle SIGUSR1 noprint" \
 				-ex "set tcp connect-timeout unlimited" \
 				-ex "target remote localhost:${GDB_QEMU_PORT_FOR_DST}" \
