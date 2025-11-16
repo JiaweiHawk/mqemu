@@ -8,13 +8,16 @@ SHARE_TAG 				:= share9p
 USER 					:= $(shell whoami)
 SSH_CONNECTION_ATTEMPTS := 5
 DEBOOTSTRAP_MIRROR		:= https://mirrors.tuna.tsinghua.edu.cn/debian/
+PORT_L0 				:= 1234
 
 ROOTFS_FOR_L1 			:= rootfs_for_l1
 TAP_FOR_L1				:= tap_for_l1
 MAC_FOR_L1				:= aa:bb:cc:cc:bb:aa
 IP_FOR_L1				:= ${NET_PREFIX}.128
-CONSOLE_PORT_FOR_L1		:= 1234
-GDB_KERNEL_PORT_FOR_L1	:= 1235
+CONSOLE_PORT_FOR_L1		:= ${PORT_L0}
+PORT_L0 				:= $(shell echo $$(( ${PORT_L0}+1 )))
+GDB_KERNEL_PORT_FOR_L1	:= ${PORT_L0}
+PORT_L0 				:= $(shell echo $$(( ${PORT_L0}+1 )))
 define QEMU_OPTIONS_FOR_L1
        -cpu host \
        -smp 4 \
@@ -52,27 +55,33 @@ endef #define QEMU_OPTIONS_FOR_L2
 BRIDGE_MIGRATE 			:= br_migrate
 NET_MIGRATE_PREFIX		:= 172.192.169
 NET_MIGRATE_MASK		:= 24
+PORT_MIGRATE 			:= 1234
 
 ROOTFS_FOR_SRC			:= rootfs_for_src
 TAP_FOR_SRC				:= tap_for_src
 MAC_FOR_SRC				:= aa:aa:cc:cc:aa:aa
 IP_FOR_SRC				:= ${NET_MIGRATE_PREFIX}.130
-CONSOLE_PORT_FOR_SRC	:= 1236
-GDB_KERNEL_PORT_FOR_SRC	:= 1237
-GDB_QEMU_PORT_FOR_SRC  	:= 1234
+CONSOLE_PORT_FOR_SRC	:= ${PORT_L0}
+PORT_L0 				:= $(shell echo $$(( ${PORT_L0}+1 )))
+GDB_KERNEL_PORT_FOR_SRC	:= ${PORT_L0}
+PORT_L0 				:= $(shell echo $$(( ${PORT_L0}+1 )))
 
 ROOTFS_FOR_DST			:= rootfs_for_dst
 TAP_FOR_DST				:= tap_for_dst
 MAC_FOR_DST				:= cc:aa:aa:aa:aa:cc
 IP_FOR_DST				:= ${NET_MIGRATE_PREFIX}.131
-CONSOLE_PORT_FOR_DST	:= 1238
-GDB_KERNEL_PORT_FOR_DST	:= 1249
-GDB_QEMU_PORT_FOR_DST  	:= 1234
+CONSOLE_PORT_FOR_DST	:= ${PORT_L0}
+PORT_L0 				:= $(shell echo $$(( ${PORT_L0}+1 )))
+GDB_KERNEL_PORT_FOR_DST	:= ${PORT_L0}
+PORT_L0 				:= $(shell echo $$(( ${PORT_L0}+1 )))
 
 QEMU_MIGRATE_GUEST_PATH := ${PWD}/qemu-system-x86_64
 
 ROOTFS_FOR_MIGRATE_GUEST:= rootfs_for_migrate_guest
-CONSOLE_MIGRATE_PORT_FOR_GUEST:= 1235
+GDB_QEMU_PORT_FOR_MIGRATE_GUEST   := ${PORT_MIGRATE}
+PORT_MIGRATE 				:= $(shell echo $$(( ${PORT_MIGRATE}+1 )))
+CONSOLE_PORT_FOR_MIGRATE_GUEST	  := ${PORT_MIGRATE}
+PORT_MIGRATE 				:= $(shell echo $$(( ${PORT_MIGRATE}+1 )))
 
 .PHONY: build kernel libvirt qemu rootfs_for_dst rootfs_for_l1 rootfs_for_l2 rootfs_for_migrate_guest rootfs_for_src submodules \
 		debug_libvirt fini_env gdb_libvirtd init_env \
@@ -802,13 +811,13 @@ console_src_guest:
 	gnome-terminal \
 		--title "console for src guest" \
 		-- \
-		telnet ${IP_FOR_SRC} ${CONSOLE_MIGRATE_PORT_FOR_GUEST}
+		telnet ${IP_FOR_SRC} ${CONSOLE_PORT_FOR_MIGRATE_GUEST}
 
 console_dst_guest:
 	gnome-terminal \
 		--title "console for dst guest" \
 		-- \
-		telnet ${IP_FOR_DST} ${CONSOLE_MIGRATE_PORT_FOR_GUEST}
+		telnet ${IP_FOR_DST} ${CONSOLE_PORT_FOR_MIGRATE_GUEST}
 
 migrate:
 	#设置qemu的gdbserver
@@ -817,7 +826,7 @@ migrate:
 	echo 'if [ "$$guest" = "" ]; then' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
 	echo 'exec ${PWD}/qemu/build/qemu-system-x86_64 "$$@"' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
 	echo 'else' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
-	echo 'exec gdbserver 0.0.0.0:${GDB_QEMU_PORT_FOR_SRC} ${PWD}/qemu/build/qemu-system-x86_64 "$$@"' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
+	echo 'exec gdbserver 0.0.0.0:${GDB_QEMU_PORT_FOR_MIGRATE_GUEST} ${PWD}/qemu/build/qemu-system-x86_64 "$$@"' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
 	echo 'fi' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
 	chmod +x ${QEMU_MIGRATE_GUEST_PATH}
 
@@ -827,7 +836,7 @@ migrate:
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/migrate_guest.xml
 	sed -i "s|{INITRD}|${PWD}/${ROOTFS_FOR_MIGRATE_GUEST}.cpio|" ${PWD}/migrate_guest.xml
 	sed -i "s|{QEMU}|${QEMU_MIGRATE_GUEST_PATH}|" ${PWD}/migrate_guest.xml
-	sed -i "s|{CONSOLE_PORT}|${CONSOLE_MIGRATE_PORT_FOR_GUEST}|" ${PWD}/migrate_guest.xml
+	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_MIGRATE_GUEST}|" ${PWD}/migrate_guest.xml
 
 	#启动src上libvirtd的gdb
 	gnome-terminal \
@@ -860,7 +869,7 @@ migrate:
 				-iex "env used_for_fini_migrate_pgrep=1" \
 				-ex "handle SIGUSR1 noprint" \
 				-ex "set tcp connect-timeout unlimited" \
-				-ex "target remote localhost:${GDB_QEMU_PORT_FOR_SRC}" \
+				-ex "target remote localhost:${GDB_QEMU_PORT_FOR_MIGRATE_GUEST}" \
 				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py"'
 
 	#启动dst上libvirtd的gdb
@@ -894,7 +903,7 @@ migrate:
 				-iex "env used_for_fini_migrate_pgrep=1" \
 				-ex "handle SIGUSR1 noprint" \
 				-ex "set tcp connect-timeout unlimited" \
-				-ex "target remote localhost:${GDB_QEMU_PORT_FOR_DST}" \
+				-ex "target remote localhost:${GDB_QEMU_PORT_FOR_MIGRATE_GUEST}" \
 				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py"'
 
 	#启动src的guest
