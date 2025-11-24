@@ -822,7 +822,7 @@ console_dst_guest:
 migrate:
 	#设置qemu的gdbserver
 	echo '#!/bin/sh' | tee ${QEMU_MIGRATE_GUEST_PATH}
-	echo 'guest=$$(echo "$$@" | sed -n "s|.* guest=\([^,]*\).*|\1|p")' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
+	echo 'guest=$$(echo "$$@" | sed -n "s|.* guest=\([^,]*\).*|\\1|p")' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
 	echo 'if [ "$$guest" = "" ]; then' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
 	echo 'exec ${PWD}/qemu/build/qemu-system-x86_64 "$$@"' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
 	echo 'else' | tee -a ${QEMU_MIGRATE_GUEST_PATH}
