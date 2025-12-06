@@ -25,10 +25,18 @@ define QEMU_OPTIONS_FOR_L1
        -kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
        -append "rdinit=/sbin/init panic=-1 console=ttyS0 nokaslr" \
        -initrd ${PWD}/${ROOTFS_FOR_L1}.cpio \
-       -netdev tap,id=net,ifname=${TAP_FOR_L1},script=no,downscript=no \
-       -device virtio-net-pci,netdev=net \
+       \
+       -machine pc-q35-5.1 \
+       -nodefaults \
+       \
+       -device pcie-root-port,port=8,chassis=1,id=pci.1,bus=pcie.0,multifunction=true,addr=0x1 \
        -fsdev local,id=share,path=${PWD},security_model=none \
-       -device virtio-9p-pci,fsdev=share,mount_tag=${SHARE_TAG} \
+       -device virtio-9p-pci,fsdev=share,mount_tag=${SHARE_TAG},bus=pci.1,addr=0x0 \
+       \
+       -device pcie-root-port,port=9,chassis=2,id=pci.2,bus=pcie.0,addr=0x1.0x1 \
+       -netdev tap,id=net,ifname=${TAP_FOR_L1},script=no,downscript=no \
+       -device virtio-net-pci,netdev=net,bus=pci.2,addr=0x0 \
+       \
        -enable-kvm \
        -nographic -no-reboot
 endef #define QEMU_OPTIONS_FOR_L1
