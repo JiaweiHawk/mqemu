@@ -42,7 +42,6 @@ define QEMU_OPTIONS_FOR_L2
 	-cpu host \
 	-smp 2 \
 	-m 2G \
-	-L ${PWD}/qemu/pc-bios \
 	-kernel ${PWD}/kernel/arch/x86_64/boot/bzImage \
 	-append "rdinit=/sbin/init panic=-1 console=ttyS0 nokaslr" \
 	-initrd ${PWD}/${ROOTFS_FOR_L2}.cpio \
@@ -490,7 +489,9 @@ rootfs_for_l1:
 		sudo sed -i "s|^#PermitRootLogin prohibit-password|PermitRootLogin yes|" ${PWD}/${ROOTFS_FOR_L1}/etc/ssh/sshd_config; \
 		\
 		#设置mqemu文件夹 \
-		echo "${SHARE_TAG} /root 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/fstab; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_L1} /bin/bash -c "mkdir -p ${PWD}"; \
+		echo "${SHARE_TAG} ${PWD} 9p trans=virtio 0 0" | sudo tee -a ${PWD}/${ROOTFS_FOR_L1}/etc/fstab; \
+		sudo chroot ${PWD}/${ROOTFS_FOR_L1} /bin/bash -c "usermod -d ${PWD} root"; \
 		\
 		#设置主机名称 \
 		echo "l1" | sudo tee ${PWD}/${ROOTFS_FOR_L1}/etc/hostname; \
