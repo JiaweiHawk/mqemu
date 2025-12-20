@@ -881,6 +881,20 @@ migrate:
 				-ex "target remote localhost:${GDB_QEMU_PORT_FOR_MIGRATE_GUEST}" \
 				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py"'
 
+	#启动src上kernel的gdb
+	gnome-terminal \
+		--title "gdb for src kernel" \
+		-- \
+		gdb \
+			-iex "set confirm on" \
+			-iex "set pagination off" \
+			-iex "env used_for_fini_migrate_pgrep=1" \
+			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
+			--eval-command="set tcp connect-timeout unlimited" \
+			--eval-command="target remote localhost:${GDB_KERNEL_PORT_FOR_SRC}" \
+			--eval-command="continue" \
+			${PWD}/kernel/vmlinux
+
 	#启动dst上libvirtd的gdb
 	gnome-terminal \
 		--title "gdb for dst libvirtd" \
@@ -914,6 +928,20 @@ migrate:
 				-ex "set tcp connect-timeout unlimited" \
 				-ex "target remote localhost:${GDB_QEMU_PORT_FOR_MIGRATE_GUEST}" \
 				--init-eval-command="source ${PWD}/qemu/scripts/qemu-gdb.py"'
+
+	#启动dst上kernel的gdb
+	gnome-terminal \
+		--title "gdb for src kernel" \
+		-- \
+		gdb \
+			-iex "set confirm on" \
+			-iex "set pagination off" \
+			-iex "env used_for_fini_migrate_pgrep=1" \
+			--init-eval-command="add-auto-load-safe-path ${PWD}/kernel/scripts/gdb/vmlinux-gdb.py" \
+			--eval-command="set tcp connect-timeout unlimited" \
+			--eval-command="target remote localhost:${GDB_KERNEL_PORT_FOR_DST}" \
+			--eval-command="continue" \
+			${PWD}/kernel/vmlinux
 
 	#启动src的guest
 	${PWD}/libvirt/build/tools/virsh -c qemu+ssh://${USER}@${IP_FOR_SRC}/session?no_verify=1 destroy migrate_guest || exit 0
