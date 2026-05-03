@@ -1,5 +1,6 @@
 PWD						:= $(shell pwd)
 NPROC					:= $(shell nproc)
+NFT_TABLE				:= mqemu
 NET_PREFIX				:= 172.192.168
 NET_MASK				:= 24
 BUSYBOX 				:= busybox-1.37.0
@@ -137,33 +138,20 @@ init_env: fini_env
 	sudo ip link set dev ${TAP_FOR_SRC} master ${BRIDGE_MIGRATE} || exit 0
 	sudo ip link set dev ${TAP_FOR_DST} master ${BRIDGE_MIGRATE} || exit 0
 
+	#设置nft表
+	sudo nft add table ${NFT_TABLE}
+
 	#添加NAT规则
-	sudo iptables -t nat -A POSTROUTING \
-		-s ${NET_PREFIX}.0/${NET_MASK} \
-		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j MASQUERADE || exit 0
-	sudo iptables -t nat -A POSTROUTING \
-		-s ${NET_MIGRATE_PREFIX}.0/${NET_MIGRATE_MASK} \
-		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j MASQUERADE || exit 0
+	sudo nft add chain ${NFT_TABLE} postrouting { type nat hook postrouting priority 100 \; }
+	sudo nft add rule ${NFT_TABLE} postrouting ip saddr ${NET_PREFIX}.0/${NET_MASK} oifname $$(ip route show default | grep -oP 'dev \K[^\s]+') masquerade
+	sudo nft add rule ${NFT_TABLE} postrouting ip saddr ${NET_MIGRATE_PREFIX}.0/${NET_MIGRATE_MASK} oifname $$(ip route show default | grep -oP 'dev \K[^\s]+') masquerade
 
 	#添加FORWARD规则
-	sudo iptables -I FORWARD \
-		-i ${TAP_FOR_L1} \
-		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j ACCEPT || exit 0
-	sudo iptables -I FORWARD \
-		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-o ${TAP_FOR_L1} \
-		-j ACCEPT || exit 0
-	sudo iptables -I FORWARD \
-		-i ${BRIDGE_MIGRATE} \
-		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j ACCEPT || exit 0
-	sudo iptables -I FORWARD \
-		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-o ${BRIDGE_MIGRATE} \
-		-j ACCEPT || exit 0
+	sudo nft add chain ${NFT_TABLE} forward { type filter hook forward priority 100\; policy drop \; }
+	sudo nft insert rule ${NFT_TABLE} forward iifname ${TAP_FOR_L1} oifname $$(ip route show default | grep -oP 'dev \K[^\s]+') accept
+	sudo nft insert rule ${NFT_TABLE} forward iifname $$(ip route show default | grep -oP 'dev \K[^\s]+') oifname ${TAP_FOR_L1} accept
+	sudo nft insert rule ${NFT_TABLE} forward iifname ${BRIDGE_MIGRATE} oifname $$(ip route show default | grep -oP 'dev \K[^\s]+') accept
+	sudo nft insert rule ${NFT_TABLE} forward iifname $$(ip route show default | grep -oP 'dev \K[^\s]+') oifname ${BRIDGE_MIGRATE} accept
 
 	#启动libvirtd
 	${PWD}/libvirt/build/src/libvirtd -d || exit 0
@@ -177,33 +165,8 @@ fini_env: fini_l1 fini_migrate
 
 	pgrep -f "env used_for_fini_env_pgrep=1" | grep -v $$$$ | xargs kill -9 || exit 0
 
-	#删除FORWARD规则
-	sudo iptables -D FORWARD \
-		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-o ${BRIDGE_MIGRATE} \
-		-j ACCEPT || exit 0
-	sudo iptables -D FORWARD \
-		-i ${BRIDGE_MIGRATE} \
-		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j ACCEPT || exit 0
-	sudo iptables -D FORWARD \
-		-i $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-o ${TAP_FOR_L1} \
-		-j ACCEPT || exit 0
-	sudo iptables -D FORWARD \
-		-i ${TAP_FOR_L1} \
-		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j ACCEPT || exit 0
-
-	#删除NAT规则
-	sudo iptables -t nat -D POSTROUTING \
-		-s ${NET_MIGRATE_PREFIX}.0/${NET_MIGRATE_MASK} \
-		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j MASQUERADE || exit 0
-	sudo iptables -t nat -D POSTROUTING \
-		-s ${NET_PREFIX}.0/${NET_MASK} \
-		-o $$(ip route show default | grep -oP 'dev \K[^\s]+') \
-		-j MASQUERADE || exit 0
+	#删除所有nft规则
+	sudo nft delete table ${NFT_TABLE} || exit 0
 
 	#从bridge删除tap
 	sudo ip link set dev ${TAP_FOR_DST} nomaster || exit 0
