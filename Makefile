@@ -100,19 +100,19 @@ PORT_MIGRATE 				:= $(shell echo $$(( ${PORT_MIGRATE}+1 )))
 
 init_env: fini_env
 	#开启ip转发
-	sudo sysctl -w net.ipv4.ip_forward=1 || exit 0
+	sudo sysctl -w net.ipv4.ip_forward=1
 
 	#创建bridge
-	sudo ip link add ${BRIDGE_MIGRATE} type bridge || exit 0
+	sudo ip link add ${BRIDGE_MIGRATE} type bridge
 
 	#创建tap
-	sudo ip tuntap add name ${TAP_FOR_L1} mode tap || exit 0
-	sudo ip tuntap add name ${TAP_FOR_SRC} mode tap || exit 0
-	sudo ip tuntap add name ${TAP_FOR_DST} mode tap || exit 0
+	sudo ip tuntap add name ${TAP_FOR_L1} mode tap
+	sudo ip tuntap add name ${TAP_FOR_SRC} mode tap
+	sudo ip tuntap add name ${TAP_FOR_DST} mode tap
 
 	#添加子网
-	sudo ip addr add ${NET_PREFIX}.1/${NET_MASK} dev ${TAP_FOR_L1} || exit 0
-	sudo ip addr add ${NET_MIGRATE_PREFIX}.1/${NET_MIGRATE_MASK} dev ${BRIDGE_MIGRATE} || exit 0
+	sudo ip addr add ${NET_PREFIX}.1/${NET_MASK} dev ${TAP_FOR_L1}
+	sudo ip addr add ${NET_MIGRATE_PREFIX}.1/${NET_MIGRATE_MASK} dev ${BRIDGE_MIGRATE}
 
 	#启动dhcp服务
 	sudo dnsmasq \
@@ -124,19 +124,19 @@ init_env: fini_env
 		--dhcp-host=${MAC_FOR_L2},${IP_FOR_L2} \
 		--dhcp-host=${MAC_FOR_SRC},${IP_FOR_SRC} \
 		--dhcp-host=${MAC_FOR_DST},${IP_FOR_DST} \
-		-x ${PWD}/dnsmasq.pid || exit 0
+		-x ${PWD}/dnsmasq.pid
 
 	#启动tap
-	sudo ip link set dev ${TAP_FOR_L1} up || exit 0
-	sudo ip link set dev ${TAP_FOR_SRC} up || exit 0
-	sudo ip link set dev ${TAP_FOR_DST} up || exit 0
+	sudo ip link set dev ${TAP_FOR_L1} up
+	sudo ip link set dev ${TAP_FOR_SRC} up
+	sudo ip link set dev ${TAP_FOR_DST} up
 
 	#启动bridge
-	sudo ip link set dev ${BRIDGE_MIGRATE} up || exit 0
+	sudo ip link set dev ${BRIDGE_MIGRATE} up
 
 	#添加tap到bridge
-	sudo ip link set dev ${TAP_FOR_SRC} master ${BRIDGE_MIGRATE} || exit 0
-	sudo ip link set dev ${TAP_FOR_DST} master ${BRIDGE_MIGRATE} || exit 0
+	sudo ip link set dev ${TAP_FOR_SRC} master ${BRIDGE_MIGRATE}
+	sudo ip link set dev ${TAP_FOR_DST} master ${BRIDGE_MIGRATE}
 
 	#设置nft表
 	sudo nft add table ${NFT_TABLE}
@@ -154,7 +154,7 @@ init_env: fini_env
 	sudo nft insert rule ${NFT_TABLE} forward iifname $$(ip route show default | grep -oP 'dev \K[^\s]+') oifname ${BRIDGE_MIGRATE} accept
 
 	#启动libvirtd
-	${PWD}/libvirt/build/src/libvirtd -d || exit 0
+	${PWD}/libvirt/build/src/libvirtd -d
 
 	@echo -e '\033[0;32m[*]\033[0minit the environment'
 
@@ -226,8 +226,6 @@ debug_l1:
 			${PWD}/kernel/vmlinux
 
 init_l1: fini_l1
-	${PWD}/libvirt/build/tools/virsh undefine l1 || exit 0
-
 	cp ${PWD}/l1.example.xml ${PWD}/l1.xml
 	sed -i "s|{NAME}|l1|" ${PWD}/l1.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/l1.xml
@@ -238,12 +236,13 @@ init_l1: fini_l1
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/l1.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_L1}|" ${PWD}/l1.xml
 	sed -i "s|{GDB_PORT}|${GDB_KERNEL_PORT_FOR_L1}|" ${PWD}/l1.xml
-	${PWD}/libvirt/build/tools/virsh define ${PWD}/l1.xml || exit 0
+	${PWD}/libvirt/build/tools/virsh define ${PWD}/l1.xml
 
-	${PWD}/libvirt/build/tools/virsh start l1 || exit 0
+	${PWD}/libvirt/build/tools/virsh start l1
 
 fini_l1:
 	${PWD}/libvirt/build/tools/virsh destroy l1 || exit 0
+	${PWD}/libvirt/build/tools/virsh undefine l1 || exit 0
 
 	pgrep -f "env used_for_fini_l1_pgrep=1" | grep -v $$$$ | xargs kill -9 || exit 0
 
@@ -663,7 +662,6 @@ rootfs_for_dst:
 	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs for dst'
 
 init_migrate: fini_migrate
-	${PWD}/libvirt/build/tools/virsh undefine src || exit 0
 	cp ${PWD}/migrate.example.xml ${PWD}/src.xml
 	sed -i "s|{NAME}|src|" ${PWD}/src.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/src.xml
@@ -675,10 +673,9 @@ init_migrate: fini_migrate
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/src.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_SRC}|" ${PWD}/src.xml
 	sed -i "s|{GDB_PORT}|${GDB_KERNEL_PORT_FOR_SRC}|" ${PWD}/src.xml
-	${PWD}/libvirt/build/tools/virsh define ${PWD}/src.xml || exit 0
-	${PWD}/libvirt/build/tools/virsh start src || exit 0
+	${PWD}/libvirt/build/tools/virsh define ${PWD}/src.xml
+	${PWD}/libvirt/build/tools/virsh start src
 
-	${PWD}/libvirt/build/tools/virsh undefine dst || exit 0
 	cp ${PWD}/migrate.example.xml ${PWD}/dst.xml
 	sed -i "s|{NAME}|dst|" ${PWD}/dst.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${PWD}/dst.xml
@@ -690,8 +687,8 @@ init_migrate: fini_migrate
 	sed -i "s|{SHARE_TAG}|${SHARE_TAG}|" ${PWD}/dst.xml
 	sed -i "s|{CONSOLE_PORT}|${CONSOLE_PORT_FOR_DST}|" ${PWD}/dst.xml
 	sed -i "s|{GDB_PORT}|${GDB_KERNEL_PORT_FOR_DST}|" ${PWD}/dst.xml
-	${PWD}/libvirt/build/tools/virsh define ${PWD}/dst.xml || exit 0
-	${PWD}/libvirt/build/tools/virsh start dst || exit 0
+	${PWD}/libvirt/build/tools/virsh define ${PWD}/dst.xml
+	${PWD}/libvirt/build/tools/virsh start dst
 
 console_src:
 	gnome-terminal \
