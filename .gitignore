@@ -5,6 +5,9 @@ compile_commands.json
 # 忽略运行过程产物
 runtime
 
+# 忽略日志信息
+log
+
 # 忽略gdb产物
 .gdb_history
 

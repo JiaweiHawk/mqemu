@@ -1,6 +1,7 @@
 PWD						:= $(shell pwd)
 RUNTIME 				:= $(PWD)/runtime
 TOOL 					:= $(PWD)/tool
+LOG 					:= $(PWD)/log
 NPROC					:= $(shell nproc)
 NFT_TABLE				:= mqemu
 NET_PREFIX				:= 172.192.168
@@ -156,7 +157,11 @@ init_env: fini_env
 	sudo nft insert rule ${NFT_TABLE} forward iifname $$(ip route show default | grep -oP 'dev \K[^\s]+') oifname ${BRIDGE_MIGRATE} accept
 
 	#启动libvirtd
-	${PWD}/libvirt/build/src/libvirtd -d
+	cp ${PWD}/libvirt/build/src/libvirtd.conf ${RUNTIME}/libvirtd.conf
+	sed -i "s|^#\(log_filters\).*$$|\1=\"1:qemu 2:libvirt\"|" ${RUNTIME}/libvirtd.conf
+	mkdir -p ${LOG}
+	sed -i "s|^#\(log_outputs\).*$$|\1=\"1:file:${LOG}/libvirtd.log\"|" ${RUNTIME}/libvirtd.conf
+	${PWD}/libvirt/build/src/libvirtd -d -f ${RUNTIME}/libvirtd.conf
 
 	@echo -e '\033[0;32m[*]\033[0minit the environment'
 
@@ -164,6 +169,7 @@ fini_env: fini_l1 fini_migrate
 	#结束libvirtd
 	kill -s TERM $$(cat $$XDG_RUNTIME_DIR/libvirt/virtqemud.pid) || exit 0
 	kill -s TERM $$(cat $$XDG_RUNTIME_DIR/libvirt/libvirtd.pid) || exit 0
+	rm -rf ${LOG}/libvirtd.log
 
 	pgrep -f "env used_for_fini_env_pgrep=1" | grep -v $$$$ | xargs kill -9 || exit 0
 
@@ -600,7 +606,7 @@ rootfs_for_src:
 		echo "[Service]" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
 		echo "User=${USER}" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
 		echo "PAMName=login" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
-		echo "ExecStart=${PWD}/libvirt/build/src/libvirtd" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
+		echo "ExecStart=${PWD}/libvirt/build/src/libvirtd -f ${RUNTIME}/libvirtd_src.conf" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
 		echo "[Install]" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
 		echo "WantedBy=multi-user.target" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_SRC}/etc/systemd/system/libvirtd.service; \
 		sudo chroot ${RUNTIME}/${ROOTFS_FOR_SRC} /bin/bash -c "systemctl enable libvirtd"; \
@@ -660,7 +666,7 @@ rootfs_for_dst:
 		echo "[Service]" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
 		echo "User=${USER}" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
 		echo "PAMName=login" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
-		echo "ExecStart=${PWD}/libvirt/build/src/libvirtd" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
+		echo "ExecStart=${PWD}/libvirt/build/src/libvirtd -f ${RUNTIME}/libvirtd_dst.conf" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
 		echo "[Install]" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
 		echo "WantedBy=multi-user.target" | sudo tee -a ${RUNTIME}/${ROOTFS_FOR_DST}/etc/systemd/system/libvirtd.service; \
 		sudo chroot ${RUNTIME}/${ROOTFS_FOR_DST} /bin/bash -c "systemctl enable libvirtd"; \
@@ -672,6 +678,11 @@ rootfs_for_dst:
 	@echo -e '\033[0;32m[*]\033[0mbuild the rootfs for dst'
 
 init_migrate: fini_migrate
+	mkdir -p ${LOG}
+
+	cp ${PWD}/libvirt/build/src/libvirtd.conf ${RUNTIME}/libvirtd_src.conf
+	sed -i "s|^#\(log_filters\).*$$|\1=\"1:qemu 2:libvirt\"|" ${RUNTIME}/libvirtd_src.conf
+	sed -i "s|^#\(log_outputs\).*$$|\1=\"1:file:${LOG}/libvirtd_src.log\"|" ${RUNTIME}/libvirtd_src.conf
 	cp ${TOOL}/migrate.example.xml ${RUNTIME}/src.xml
 	sed -i "s|{NAME}|src|" ${RUNTIME}/src.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${RUNTIME}/src.xml
@@ -686,6 +697,9 @@ init_migrate: fini_migrate
 	${PWD}/libvirt/build/tools/virsh define ${RUNTIME}/src.xml
 	${PWD}/libvirt/build/tools/virsh start src
 
+	cp ${PWD}/libvirt/build/src/libvirtd.conf ${RUNTIME}/libvirtd_dst.conf
+	sed -i "s|^#\(log_filters\).*$$|\1=\"1:qemu 2:libvirt\"|" ${RUNTIME}/libvirtd_dst.conf
+	sed -i "s|^#\(log_outputs\).*$$|\1=\"1:file:${LOG}/libvirtd_dst.log\"|" ${RUNTIME}/libvirtd_dst.conf
 	cp ${TOOL}/migrate.example.xml ${RUNTIME}/dst.xml
 	sed -i "s|{NAME}|dst|" ${RUNTIME}/dst.xml
 	sed -i "s|{KERNEL}|${PWD}/kernel/arch/x86_64/boot/bzImage|" ${RUNTIME}/dst.xml
@@ -733,9 +747,11 @@ ssh_dst:
 fini_migrate:
 	${PWD}/libvirt/build/tools/virsh destroy src || exit 0
 	${PWD}/libvirt/build/tools/virsh undefine src || exit 0
+	rm -rf ${LOG}/libvirtd_src.log
 
 	${PWD}/libvirt/build/tools/virsh destroy dst || exit 0
 	${PWD}/libvirt/build/tools/virsh undefine dst || exit 0
+	rm -rf ${LOG}/libvirtd_dst.log
 
 	pgrep -f "env used_for_fini_migrate_pgrep=1" | grep -v $$$$ | xargs kill -9 || exit 0
 
