@@ -399,6 +399,7 @@ qemu:
 		./configure \
 			--target-list=x86_64-softmmu \
 			--without-default-features \
+			--disable-docs \
 			--enable-debug \
 			--enable-kvm \
 			--enable-attr \
