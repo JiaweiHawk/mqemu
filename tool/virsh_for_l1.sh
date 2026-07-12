@@ -1,3 +1,5 @@
 #!/bin/sh
 
-${PWD}/../libvirt/build/tools/virsh $@
+SCRIPT_PATH=$(readlink -f "$0")
+SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
+${SCRIPT_DIR}/../libvirt/build/tools/virsh $@
